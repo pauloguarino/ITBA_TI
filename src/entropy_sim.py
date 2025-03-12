@@ -1,70 +1,15 @@
 from __future__ import annotations
 
-import dit
-import dit.shannon
+from collections.abc import Iterable
 import numpy as np
-
-class Source_dit(dit.Distribution):
-    entropy: float
-    base_source: Source_dit
-    
-    def __init__(self, outcomes, pmf=None, base_source=None, sample_space=None, base=None, prng=None, sort=True, sparse=True, trim=True, validate=False):
-        super().__init__(outcomes, pmf, sample_space, base, prng, sort, sparse, trim, validate)
-        if self._outcome_class is not str:
-            raise NotImplementedError("Not implemented for simbol class different from str")
-        
-        self.pmf = np.array(self.pmf)
-        self.pmf = self.pmf/self.pmf.sum()
-        self.entropy = dit.shannon.entropy(self)
-        
-        self.base_source = self if base_source is None else base_source
-        
-    def extend(self, n: int) -> Source_dit:
-        if n < 2:
-            return self
-
-        return self._extend(Source_dit(self.outcomes, self.pmf, base_source=self), n)
-    
-    def _extend(self, extension: Source_dit, n: int) -> Source_dit:
-        if n < 2:
-            return extension
-        
-        n -= 1
-        extended_pmf = dict()
-        for extended_simbol, extended_probability in zip(extension.outcomes, extension.pmf):
-            for simbol, probability in zip(self.outcomes, self.pmf):
-                extended_pmf[extended_simbol + simbol] = extended_probability*probability
-                if n == 2:
-                    extended_pmf[extended_simbol + simbol] = Source_dit._relative_round(extended_probability*probability)
-        
-        extension = Source_dit(extended_pmf, base_source=self.base_source)
-        
-        return self._extend(extension, n)
-
-    def _relative_round(p: float) -> float:
-        rounded_p = p
-        
-        n = 1
-        rounded_p = round(p, n)
-        while np.abs(p - rounded_p)/p > 0.0001:
-            n += 1
-            rounded_p = round(p, n)
-        
-        return rounded_p
-    
-    def get_typical_list(self, epsilon: float) -> list[str]:
-        typical_list = []
-        for simbol, probability in zip(self.outcomes, self.pmf):
-            if 2**(-self.outcome_length()*(self.base_source.entropy + epsilon)) < probability < 2**(-self.outcome_length()*(self.base_source.entropy - epsilon)):
-                typical_list.append(simbol)
-        
-        return typical_list
+import time
     
 class Source:
     base_source: Source
-    pmf_dict: dict[str, float]
+    dist: dict[str, float]
     simbols: list[str]
     pmf: list[float]
+    cmf: list[float]
     entropy: float
     epsilon: float
     typical_set: set[str]
@@ -73,86 +18,164 @@ class Source:
     def alphabet(self) -> list[str]:
         return self.base_source.simbols
 
-    def __init__(self, pmf_dict, epsilon: float = 0.1, base_source: Source = None):
+    def __init__(self, dist: dict[str, float], epsilon: float = 0.1, base_source: Source = None, init=True):
+        start = time.perf_counter()
         self.base_source = self if base_source is None else base_source
-        self.pmf_dict = pmf_dict
-        self.simbols = [simbol for simbol in pmf_dict.keys()]
-        self.pmf = np.array([probability for probability in pmf_dict.values()])
-        self.pmf = self.pmf/self.pmf.sum()
-        for simbol in self.pmf_dict.keys():
-            self.pmf_dict[simbol] = self.pmf_dict[simbol]/self.pmf.sum()
-        self.entropy = np.sum(-np.log2(self.pmf)*self.pmf)
+        self.dist = dist
+        self.simbols = [simbol for simbol in dist.keys()]
+        self.pmf = np.array([float(probability) for probability in dist.values()])
+        pmf_norm = self.pmf.sum()
+        self.pmf /= pmf_norm
+        for simbol in self.dist.keys():
+            self.dist[simbol] = self.dist[simbol]/pmf_norm
         
-        self.epsilon = epsilon
-        self.typical_set = {}
-        for simbol, probability in self.pmf_dict.items():
-            if 2**(-len(self.alphabet)*(self.base_source.entropy + self.epsilon)) < probability < 2**(-len(self.alphabet)*(self.base_source.entropy - self.epsilon)):
-                self.typical_set.add(simbol)
-
+        if init:
+            self.cmf = np.zeros(len(self.pmf))
+            cmf = 0
+            for i in range(len(self.pmf)):
+                cmf += self.pmf[i]
+                self.cmf[i] = cmf
+            self.cmf /= cmf
+            self.entropy = np.sum(-np.log2(self.pmf)*self.pmf)
+            
+            self.epsilon = epsilon
+            self.typical_set = set()
+            for simbol, probability in self.dist.items():
+                if 2**(-len(self.simbols[0])*(self.base_source.entropy + self.epsilon)) < probability < 2**(-len(self.simbols[0])*(self.base_source.entropy - self.epsilon)):
+                    self.typical_set.add(simbol)
+        
+        stop = time.perf_counter()
+        print(f"Init time: {stop - start}")
+    
     def extend(self, n: int) -> Source:
+        start = time.perf_counter()
         if n < 2:
             return self
-
-        return self._extend(Source(self.pmf_dict, base_source=self), n)
-    
-    def _extend(self, extension: Source, n: int) -> Source:
-        if n < 2:
-            return extension
         
-        n -= 1
-        extended_pmf = dict()
-        for extended_simbol, extended_probability in extension.pmf_dict.items():
-            for simbol, probability in self.pmf_dict.items():
-                extended_pmf[extended_simbol + simbol] = extended_probability*probability
-                if n == 2:
-                    extended_pmf[extended_simbol + simbol] = Source._relative_round(extended_probability*probability)
+        extended_dist = dict()
+        aux_dist = dict()
+        for simbol, probability in self.dist.items():
+            extended_dist[simbol] = probability
+            
+        for i in range(n - 1):
+            aux_dist = dict()
+            for extended_simbol, extended_probability in extended_dist.items():
+                for simbol, probability in self.dist.items():
+                    aux_dist[extended_simbol + simbol] = extended_probability*probability
+            extended_dist = dict()
+            for aux_simbol, aux_probability in aux_dist.items():
+                extended_dist[aux_simbol] = aux_probability
         
-        extension = Source(extended_pmf, base_source=self.base_source)
-        
-        return self._extend(extension, n)
-
-    def _relative_round(p: float) -> float:
-        rounded_p = p
-        
-        n = 1
-        rounded_p = round(p, n)
-        while np.abs(p - rounded_p)/p > 0.0001:
-            n += 1
-            rounded_p = round(p, n)
-        
-        return rounded_p
+        stop = time.perf_counter()
+        print(f"Extend time: {stop - start}")
+        return Source(extended_dist, base_source=self, epsilon=self.epsilon)
+            
+    def comb_prob(self, simbols: str | list[str]) -> float:
+        if isinstance(simbols, str):
+            return self.dist[simbols]
+        if isinstance(simbols, Iterable):
+            return np.sum([self.dist[simbol] for simbol in simbols])
 
     def __repr__(self) -> str:
-        # TODO: dejarlo como la otra
-        return f"{(self.pmf_dict)}"
+        print_output = "Simbol\t"
+        while len(print_output) < len(self.simbols[0]) + 1:
+            print_output += "\t"
+        print_output += "Probability"
+        for simbol, probability in self.dist.items():
+            print_output += "\n"
+            print_output += simbol
+            print_output += "\t"
+            print_output += f"{probability:.3g}"
+        
+        return print_output
+    
+    def __call__(self, n: int = 1) -> str:
+        output = ""
+        for i in range(n):
+            shifted_cmf = self.cmf - np.random.random()
+            positive_shifted_cmf = np.where(shifted_cmf < 0, np.inf, shifted_cmf)
+            output += self.simbols[np.argmin(positive_shifted_cmf)]
+            
+        return output
+    
+    def __len__(self) -> int:
+        return len(self.dist)
 
 
 def entropy_sim():
-    pmf = {
+    dist = {
         "A": 0.1,
         "B": 0.8,
         "C": 0.05,
         "D": 0.05,
     }
-    source = Source(pmf)
+    source = Source(dist)
     print(source)
-    print(f"{source.entropy:.4f}")
-    # print(source.rand(20))
 
-    extended_source = source.extend(4)
-    print(extended_source)
-    print(f"{extended_source.entropy:.4f}")
-    # print(extended_source.rand(5))
-    # epsilon = 0.1
-    # print(f"{extended_source.get_typical_list(epsilon)}")
-    # print(f"{len(extended_source.get_typical_list(epsilon))/len(extended_source)}")
-    # print(f"{(2**(-extended_source.outcome_length()*(source.entropy + epsilon)),
-    #       2**(-extended_source.outcome_length()*(source.entropy - epsilon)))}")
+    print(f"Entropía de la fuente: {source.entropy:.3g}")
+    print(f"Cadena generada: {source(20)}")
+    
+    # Contrastar 0.9 - 0.1 vs 0.5 - 0.5
+    bin_dist = {
+        "0": 0.1,
+        "1": 0.9,
+    }
+    n = 18
+    epsilon = 0.2 # variar entre 0.2 a 0.4
+    bin_source = Source(bin_dist, epsilon=epsilon)
+    extended_bin_source = bin_source.extend(n)
 
-    # fig, ax = plt.subplots(1, 1)
-    # ax.plot(source.int_values, source.pmf, 'ro', ms=12, mec='r')
-    # ax.vlines(source.int_values, 0, source.pmf, colors='r', lw=4)
-    # plt.show()
+    typical_set_size_relation = len(extended_bin_source.typical_set)/len(extended_bin_source)
+
+    print(bin_source)
+    print(f"Entropía de la fuente: {bin_source.entropy:.3g}")
+    print(f"Entropía de la fuente extendida a {n}: {extended_bin_source.entropy:.3g}")
+
+    print(f"Tamaño del conjunto típico de epsilon {epsilon}: {len(extended_bin_source.typical_set)}")
+    print(f"Relación de tamaño del conjunto típico sobre el total: {typical_set_size_relation*100:.3g} %")
+    print(f"Probabilidad acumulada del conjunto típico: {extended_bin_source.comb_prob(extended_bin_source.typical_set):.3g}")
+
+    text_dist = {
+        "A": 1,
+        "B": 1,
+        "C": 1,
+        "D": 1,
+        "E": 1,
+        "F": 1,
+        "G": 1,
+        "H": 1,
+        "I": 1,
+        "J": 1,
+        "K": 1,
+        "L": 1,
+        "M": 1,
+        "N": 1,
+        "Ñ": 1,
+        "O": 1,
+        "P": 1,
+        "Q": 1,
+        "R": 1,
+        "S": 1,
+        "T": 1,
+        "U": 1,
+        "V": 1,
+        "W": 1,
+        "X": 1,
+        "Y": 1,
+        "Z": 1,
+        ".": 1,
+        ",": 1,
+        ":": 1,
+        "-": 1,
+        " ": 1,
+    }
+
+    m = 4  # más de 4 necesito mi computadora
+    text_source = Source(text_dist)
+    extended_text_source = text_source.extend(m)
+
+    print(f"Entropía de la fuente: {text_source.entropy:.3g}")
+
 
 if __name__ == "__main__":
     entropy_sim()
