@@ -126,13 +126,13 @@ class OldSource:
 
 @njit(
     [float32(float32[:], int32, int32), float64(float64[:], int32, int32)],
-    parallel=True,
+    # parallel=True,
     cache=True,
     )
 def fast_entropy(pmf: np.ndarray, alphabet_len: int, n_extension: int) -> float:
     entropy_value = 0
-    extension_pmf = np.zeros(alphabet_len**n_extension)
-    for i in range(len(extension_pmf)):
+    # extension_pmf = np.zeros(alphabet_len**n_extension)
+    for i in range(alphabet_len**n_extension):
         probability = 1
         var_index = i
         for j in range(n_extension - 1, -1, -1):
@@ -185,6 +185,7 @@ class Source:
     cmf: np.ndarray
     base_entropy: float
     n_extension: int
+    null_character = "\0"
     
     def __init__(self, dist: dict[str, float], n_extension: int = 1):
         self.dist = dist
@@ -205,6 +206,7 @@ class Source:
         self.base_entropy = np.sum(-np.log2(self.pmf)*self.pmf)
         
         self.n_extension = n_extension
+        self.max_simbol_length = max(len(s) for s in self.alphabet)*self.n_extension
                         
     def index_to_simbol(self, index: int) -> str:
         var_index = index
@@ -216,19 +218,26 @@ class Source:
         return simbol
     
     def simbol_to_index(self, simbol: str) -> int:
+        # funciona solo si el alfabeto de la fuente es un código instantáneo
+        padded_simbol = simbol + self.null_character*(self.max_simbol_length - len(simbol))
         index = 0
-        for i in range(self.n_extension):
+        string_index = 0
+        simbol_index = 0
+        while string_index < len(simbol):
             for j in range(len(self.alphabet)):
-                if simbol[i] == self.alphabet[j]:
-                    index += j*(len(self.alphabet)**(self.n_extension - i - 1))
+                alphabet_simbol = self.alphabet[j]
+                if padded_simbol[string_index:string_index + len(alphabet_simbol)] == alphabet_simbol:
+                    alphabet_simbol_index = j
+                    alphabet_simbol_length = len(alphabet_simbol)
+            index += alphabet_simbol_index*(len(self.alphabet)**(self.n_extension - simbol_index - 1))
+            string_index += alphabet_simbol_length
+            simbol_index += 1
+        
         return index
     
     def probability(self, simbols: str | int | Iterable[str] | Iterable[int]) -> float:
         if isinstance(simbols, str):
-            probability = 1
-            for i in range(self.n_extension):
-                probability *= self.dist[simbols[i]]
-            return probability
+            return self.probability([self.simbol_to_index(simbols)])
         if isinstance(simbols, int):
             return self.probability([simbols])
         if isinstance(simbols, Iterable):
@@ -258,7 +267,7 @@ class Source:
     def __repr__(self) -> str:
         print_output = "Simbol\t"
         print_output_len = len(print_output) + 5
-        while print_output_len < self.n_extension + 1:
+        while print_output_len < self.max_simbol_length + 1:
             print_output += "\t"
             print_output_len += 6
         print_output += "Probability"
@@ -319,8 +328,8 @@ def typical_set_sim():
         "0": 0.1,
         "1": 0.9,
     }
-    n = 10  # 22
-    epsilon = 0.2 # variar entre 0.2 a 0.4
+    n = 22  # 22
+    epsilon = 0.31 # variar entre 0.2 a 0.4
     bin_source = Source(bin_dist)
     extended_bin_source = Source(bin_dist, n)
     extended_bin_source_typical_set = extended_bin_source.typical_set(epsilon)
@@ -355,6 +364,52 @@ def typical_set_sim():
     plt.figure()
     plt.plot(range(1, N + 1), typical_sets_probabilities)
     plt.show()
+
+def multicharacter_simbols_sim():
+    bin_dist = {  # contrastar 0.9 - 0.1 vs 0.5 - 0.5
+        "0": 0.7,
+        "10": 0.2,
+        "110": 0.08,
+        "111": 0.02,
+    }
+    n = 12  # 22
+    epsilon = 0.3 # variar entre 0.2 a 0.4
+    bin_source = Source(bin_dist)
+    extended_bin_source = Source(bin_dist, n)
+    extended_bin_source_typical_set = extended_bin_source.typical_set(epsilon)
+    typical_set_size_relation = len(extended_bin_source_typical_set)/len(extended_bin_source)
+
+    # print(extended_bin_source)
+    print("Started")
+    print(f"Entropía de la fuente: {bin_source.entropy():.3g}")
+    print(f"Entropía de la fuente extendida a {n}: {extended_bin_source.entropy():.3g}")
+
+    print(f"Tamaño del conjunto típico de epsilon {epsilon}: {len(extended_bin_source_typical_set)}")
+    print(f"Relación de tamaño del conjunto típico sobre el total: {typical_set_size_relation*100:.3g} %")
+    print(f"Probabilidad acumulada del conjunto típico: {extended_bin_source.probability(extended_bin_source_typical_set):.3g}")
+
+    N = 12
+    epsilon = 0.3 # variar entre 0.2 a 0.4, énfasis en 0.3
+    
+    sources = [Source(bin_dist, i) for i in range(1, N + 1)]
+    entropies = [source.entropy() for source in sources]
+    typical_sets = [source.typical_set(epsilon) for source in sources]
+    typical_sets_lengths = np.array([len(typical_set) for typical_set in typical_sets])
+    typical_sets_relative_sizes = np.array([length/len(source) for source, length in zip(sources, typical_sets_lengths)])
+    typical_sets_probabilities = np.array([source.probability(typical_set) for source, typical_set in zip(sources, typical_sets)])
+
+    plt.figure()
+    plt.plot(range(1, N + 1), entropies)
+    plt.show()
+    
+    plt.figure()
+    plt.plot(range(1, N + 1), typical_sets_relative_sizes*100)
+    plt.show()
+    
+    plt.figure()
+    plt.plot(range(1, N + 1), typical_sets_probabilities)
+    plt.show()
+
 
 def text_source_sim():
     text_dist = {
@@ -402,6 +457,7 @@ def text_source_sim():
 
 if __name__ == "__main__":
     # entropy_sim()
-    typical_set_sim()
+    # typical_set_sim()
+    multicharacter_simbols_sim()
     # text_source_sim()
     
