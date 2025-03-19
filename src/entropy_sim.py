@@ -310,6 +310,30 @@ class Source:
     def __len__(self) -> int:
         return len(self.alphabet)**self.n_extension
 
+class MemorySource:
+    sources: list[Source]
+    alphabet: list[str]
+    pmf: np.ndarray
+    cmf: np.ndarray
+    n_extension: int
+    
+    n_states: int
+    memory: int
+    smf: np.ndarray
+    
+    def __init__(self, alphabet: list[str], pmf: np.ndarray, n_extension: int = 1):
+        assert len(alphabet) == pmf.shape[1]
+        assert np.log2(pmf.shape[0]) == int(np.log2(pmf.shape[0]))
+        
+        self.n_states = pmf.shape[0]
+        self.memory = int(np.log2(self.n_states))
+        self.alphabet = alphabet
+
+        distributions = [{alphabet[i]: pmf[j, i] for i in range(len(alphabet))} for j in range(self.memory)]
+        self.sources = [Source(dist) for dist in distributions]
+
+        # TODO: probabilidades marginales de cada estado
+
 def entropy_sim():
     dist = {
         "A": 0.1,
