@@ -558,17 +558,23 @@ def typical_set_sim():
     typical_sets_relative_sizes = np.array([length/len(source) for source, length in zip(sources, typical_sets_lengths)])
     typical_sets_probabilities = np.array([source.probability(typical_set) for source, typical_set in zip(sources, typical_sets)])
 
+    theoretical_typical_sets_relative_sizes = np.array([2**(source.n_extension*source.base_entropy)/len(source) for source in sources])
+    theoretical_typical_sets_probabilities_limit = 1 - epsilon
+
     plt.figure()
     plt.plot(range(1, N + 1), entropies)
     plt.show()
     
     plt.figure()
     plt.plot(range(1, N + 1), typical_sets_relative_sizes*100)
+    plt.plot(range(1, N + 1), theoretical_typical_sets_relative_sizes*100)
     plt.show()
     
     plt.figure()
     plt.plot(range(1, N + 1), typical_sets_probabilities)
+    plt.plot(range(1, N + 1), [theoretical_typical_sets_probabilities_limit for i in range(N)])
     plt.show()
+
 
 def multicharacter_simbols_sim():
     bin_dist = {  # contrastar 0.9 - 0.1 vs 0.5 - 0.5
@@ -602,16 +608,21 @@ def multicharacter_simbols_sim():
     typical_sets_relative_sizes = np.array([length/len(source) for source, length in zip(sources, typical_sets_lengths)])
     typical_sets_probabilities = np.array([source.probability(typical_set) for source, typical_set in zip(sources, typical_sets)])
 
+    theoretical_typical_sets_relative_sizes = np.array([2**(source.n_extension*source.base_entropy)/len(source) for source in sources])
+    theoretical_typical_sets_probabilities_limit = 1 - epsilon
+
     plt.figure()
     plt.plot(range(1, N + 1), entropies)
     plt.show()
     
     plt.figure()
     plt.plot(range(1, N + 1), typical_sets_relative_sizes*100)
+    plt.plot(range(1, N + 1), theoretical_typical_sets_relative_sizes*100)
     plt.show()
     
     plt.figure()
     plt.plot(range(1, N + 1), typical_sets_probabilities)
+    plt.plot(range(1, N + 1), [theoretical_typical_sets_probabilities_limit for i in range(N)])
     plt.show()
 
 
@@ -676,8 +687,8 @@ def memory_source_sim():
 
 if __name__ == "__main__":
     # entropy_sim()
-    # typical_set_sim()
+    typical_set_sim()
     # multicharacter_simbols_sim()
     # text_source_sim()
-    memory_source_sim()
+    # memory_source_sim()
     
