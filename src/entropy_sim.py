@@ -4,6 +4,7 @@ from collections.abc import Iterable
 import matplotlib.pyplot as plt
 from numba import njit, float32, float64, int32, int64
 import numpy as np
+from pathlib import Path
 import time
 from types import TracebackType
 
@@ -688,11 +689,48 @@ def memory_source_sim():
     print(f"Cadena generada: {source(20)}")
     print(f"Cadena generada con la fuente afín: {source.unconditional_source(20)}")
 
+def binary_output_sim():
+    bin_dist = {  # contrastar 0.9 - 0.1 vs 0.5 - 0.5
+        "0": 0.1,
+        "1": 0.9,
+    }
+    source = Source(bin_dist, 8)
+    entropy = source.base_entropy
+    print(f"Entropía de la fuente: {entropy:.3g} bits")
+    
+    current_dir_path = Path.cwd()
+    output_dir_path = current_dir_path.joinpath("outputs")
+    source_output_path = output_dir_path.joinpath("entropy_binary_output_sim_source_output")
+    random_output_path = output_dir_path.joinpath("entropy_binary_output_sim_random_output")
+    semirandom_output_path = output_dir_path.joinpath("entropy_binary_output_sim_semirandom_output")
+    
+    output_size = 8000*2**10
+    expected_source_output_compressed_size = output_size*entropy
+    fixed_bits_per_byte = 3
+    mask = 2**(8 - fixed_bits_per_byte) - 1
+    expected_semirandom_output_compressed_size = output_size*fixed_bits_per_byte/8
+
+    print(f"Tamaño de los archivos de salida: {output_size/1024:.0f} Kb")
+    print(f"Tamaño esperado del archivo generado por la fuente comprimido: {expected_source_output_compressed_size/1024:.0f} Kb")
+    print(f"Tamaño esperado del archivo semialeatorio comprimido: {expected_semirandom_output_compressed_size/1024:.0f} Kb")
+    
+    with open(source_output_path, "bw") as file:
+        for _ in range(output_size):
+            file.write(bytes([source.simbol_to_index(source())]))
+    
+    with open(random_output_path, "bw") as random_file:
+        with open(semirandom_output_path, "bw") as semirandom_file:
+            for _ in range(output_size):
+                byte = np.random.randint(256)
+                random_file.write(bytes([byte]))
+                semirandom_file.write(bytes([byte & mask]))
 
 if __name__ == "__main__":
     # entropy_sim()
     # typical_set_sim()
     # multicharacter_simbols_sim()
     # text_source_sim()
-    memory_source_sim()
+    # memory_source_sim()
+    binary_output_sim()
+    pass
     
