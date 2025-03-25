@@ -188,12 +188,18 @@ class Source:
     n_extension: int
     null_character = "\0"
     
-    def __init__(self, dist: dict[str, float], n_extension: int = 1):
-        self.dist = dist
+    def __init__(self, dist: dict[str, float] | tuple[Iterable[str], Iterable[float]] | Source, n_extension: int = 1):
+        if isinstance(dist, dict):
+            self.dist = {simbol: probability for simbol, probability in dist.items()}
+        if isinstance(dist, tuple):
+            self.dist = {simbol: probability for simbol, probability in zip(dist[0], dist[1])}
+        if isinstance(dist, Source):
+            self.dist = {simbol: probability for simbol, probability in dist.dist.items()}
         
-        self.alphabet = [simbol for simbol in dist.keys()]
+        self.alphabet = [simbol for simbol in self.dist.keys()]
+        self.n_extension = n_extension
         
-        self.pmf = np.array([float(probability) for probability in dist.values()])
+        self.pmf = np.array([float(probability) for probability in self.dist.values()])
         pmf_norm = self.pmf.sum()
         self.pmf /= pmf_norm
         
@@ -206,7 +212,6 @@ class Source:
         
         self.base_entropy = np.sum(-np.log2(self.pmf)*self.pmf)
         
-        self.n_extension = n_extension
         self.max_simbol_length = max(len(s) for s in self.alphabet)*self.n_extension
                         
     def index_to_simbol(self, index: int) -> str:
@@ -358,22 +363,28 @@ class MemorySource:
     unconditional_pmf: np.ndarray
     unconditional_source: Source
     
-    def __init__(self, alphabet: list[str], pmf: np.ndarray, n_extension: int = 1):
-        assert len(alphabet) == pmf.shape[1]
-        assert np.log2(pmf.shape[0]) == int(np.log2(pmf.shape[0]))
+    def __init__(self, dist: tuple[Iterable[str], np.ndarray] | Source, n_extension: int = 1):
+        if isinstance(dist, tuple):
+            self.alphabet = [simbol for simbol in dist[0]]
+            self.pmf = np.copy(dist[1])
+        if isinstance(dist, Source):
+            self.alphabet = [simbol for simbol in dist.alphabet]
+            self.pmf = np.copy(dist.pmf)
         
-        self.n_states = pmf.shape[0]
-        self.memory = int(np.log2(self.n_states))
+        assert len(self.alphabet) == self.pmf.shape[1]
+        assert np.log2(self.pmf.shape[0]) == int(np.log2(self.pmf.shape[0]))
         
-        self.alphabet = alphabet
+        self.alphabet = self.alphabet
         self.n_extension = n_extension
+        self.n_states = self.pmf.shape[0]
+        self.memory = int(np.log2(self.n_states))
 
-        distributions = [{alphabet[i]: pmf[j, i] for i in range(len(alphabet))} for j in range(self.n_states)]
+        distributions = [{self.alphabet[i]: self.pmf[j, i] for i in range(len(self.alphabet))} for j in range(self.n_states)]
         self.conditional_sources = [Source(dist) for dist in distributions]
         self.state_source = Source(distributions[0], self.memory)
         
-        self.pmf = np.zeros(pmf.shape)
-        self.cmf = np.zeros(pmf.shape)
+        self.pmf = np.zeros(self.pmf.shape)
+        self.cmf = np.zeros(self.pmf.shape)
         for i in range(self.n_states):
             self.pmf[i, :] = self.conditional_sources[i].pmf
             cmf = 0
@@ -391,18 +402,19 @@ class MemorySource:
                 new_state = new_state[self.n_extension:]
                 new_state_index = self.state_source.simbol_to_index(new_state)
                 self.transition_matrix[i, new_state_index] = self.pmf[i, j]
-        # print(self.transition_matrix)
         
         values, vectors = np.linalg.eig(self.transition_matrix.transpose())
         eigenvector_index = np.argmin(abs(values - 1))
         eigenvector = np.abs(vectors[:, eigenvector_index])
         self.smf = eigenvector/np.sum(eigenvector)
-        # print(self.smf)
-        # print(np.linalg.matrix_power(self.transition_matrix, 100))
         self.unconditional_pmf = np.matmul(self.smf, self.pmf)
-        print(self.unconditional_pmf)
         unconditional_dist = {simbol: probability for simbol, probability in zip(self.alphabet, self.unconditional_pmf)}
         self.unconditional_source = Source(unconditional_dist)
+        
+        # print(self.transition_matrix)
+        # print(self.smf)
+        # print(np.linalg.matrix_power(self.transition_matrix, 100))
+        # print(self.unconditional_pmf)
         
     def index_to_simbol(self, index: int) -> str:
         return self.unconditional_source.index_to_simbol(index)
@@ -675,7 +687,7 @@ def text_source_sim():
 def memory_source_sim():
     alphabet = ["0", "1"]
     pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.4, 0.6], [0.9, 0.1]])
-    source = MemorySource(alphabet, pmf)
+    source = MemorySource((alphabet, pmf))
     
     print(source)
     
