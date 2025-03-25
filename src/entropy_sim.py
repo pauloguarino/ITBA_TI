@@ -187,7 +187,8 @@ class Source:
     base_entropy: float
     n_extension: int
     null_character = "\0"
-    
+    simbol_length: int
+        
     def __init__(self, dist: dict[str, float] | tuple[Iterable[str], Iterable[float]] | Source, n_extension: int = 1):
         if isinstance(dist, dict):
             self.dist = {simbol: probability for simbol, probability in dist.items()}
@@ -212,7 +213,7 @@ class Source:
         
         self.base_entropy = np.sum(-np.log2(self.pmf)*self.pmf)
         
-        self.max_simbol_length = max(len(s) for s in self.alphabet)*self.n_extension
+        self.simbol_length = len(self.alphabet[0])
                         
     def index_to_simbol(self, index: int) -> str:
         var_index = index
@@ -224,21 +225,11 @@ class Source:
         return simbol
     
     def simbol_to_index(self, simbol: str) -> int:
-        # funciona solo si el alfabeto de la fuente es un código instantáneo
-        padded_simbol = simbol + self.null_character*(self.max_simbol_length - len(simbol))
         index = 0
-        string_index = 0
-        simbol_index = 0
-        while string_index < len(simbol):
+        for i in range(self.n_extension):
             for j in range(len(self.alphabet)):
-                alphabet_simbol = self.alphabet[j]
-                if padded_simbol[string_index:string_index + len(alphabet_simbol)] == alphabet_simbol:
-                    alphabet_simbol_index = j
-                    alphabet_simbol_length = len(alphabet_simbol)
-            index += alphabet_simbol_index*(len(self.alphabet)**(self.n_extension - simbol_index - 1))
-            string_index += alphabet_simbol_length
-            simbol_index += 1
-        
+                if simbol[i*self.simbol_length:(i + 1)*self.simbol_length] == self.alphabet[j]:
+                    index += j*(len(self.alphabet)**(self.n_extension - i - 1))
         return index
     
     def probability(self, simbols: str | int | Iterable[str] | Iterable[int]) -> float:
@@ -273,7 +264,7 @@ class Source:
     def __repr__(self) -> str:
         print_output = "Simbol\t"
         print_output_len = len(print_output) + 5
-        while print_output_len < self.max_simbol_length + 1:
+        while print_output_len < self.simbol_length*self.n_extension + 1:
             print_output += "\t"
             print_output_len += 6
         print_output += "Probability"
@@ -590,11 +581,11 @@ def typical_set_sim():
 
 
 def multicharacter_simbols_sim():
-    bin_dist = {  # contrastar 0.9 - 0.1 vs 0.5 - 0.5
-        "0": 0.7,
-        "10": 0.2,
-        "110": 0.08,
-        "111": 0.02,
+    bin_dist = {
+        "000": 0.4,
+        "100": 0.3,
+        "110": 0.2,
+        "111": 0.1,
     }
     n = 12  # 22
     epsilon = 0.3 # variar entre 0.2 a 0.4
