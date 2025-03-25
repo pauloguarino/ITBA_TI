@@ -125,11 +125,11 @@ class OldSource:
 
 
 @njit(
-    [float32(float32[:], int32, int32), float64(float64[:], int32, int32)],
+    [float32(float32[:], int32, int32, int32), float64(float64[:], int32, int32, int32)],
     # parallel=True,
     cache=True,
     )
-def fast_entropy(pmf: np.ndarray, alphabet_len: int, n_extension: int) -> float:
+def fast_entropy(pmf: np.ndarray, alphabet_len: int, n_extension: int, base: int) -> float:
     entropy_value = 0
     # extension_pmf = np.zeros(alphabet_len**n_extension)
     for i in range(alphabet_len**n_extension):
@@ -142,7 +142,8 @@ def fast_entropy(pmf: np.ndarray, alphabet_len: int, n_extension: int) -> float:
         # extension_pmf[i] = probability
         entropy_value += -np.log2(probability)*probability
     # return np.sum(-np.log2(extension_pmf)*extension_pmf)
-    return entropy_value
+    
+    return entropy_value/np.log2(base)
 
 @njit(
     [float32(float32[:], int64[:], int32, int32), float64(float64[:], int64[:], int32, int32)],
@@ -254,9 +255,9 @@ class Source:
             if simbol_type is int:
                 return fast_probability(self.pmf, np.array(simbols), len(self.alphabet), self.n_extension)
             
-    def entropy(self) -> float:
+    def entropy(self, base: int = 2) -> float:
         with Time("Entropy") as _:
-            return fast_entropy(self.pmf, len(self.alphabet), self.n_extension)
+            return fast_entropy(self.pmf, len(self.alphabet), self.n_extension, base)
     
     def typical_set(self, epsilon: float = 0.1) -> set[str]:
         with Time("Typical set") as _:
@@ -418,9 +419,9 @@ class MemorySource:
     def probability(self, simbols: str | int | Iterable[str] | Iterable[int], state: str | int = None) -> float:
         state_index = self.state_to_index(state) if isinstance(state, str) else state
         if isinstance(simbols, str):
-            return self.probability([self.simbol_to_index(simbols)])
+            return self.probability([self.simbol_to_index(simbols)], state)
         if isinstance(simbols, int):
-            return self.probability([simbols])
+            return self.probability([simbols], state)
         if isinstance(simbols, Iterable):
             if isinstance(simbols, set):
                 if len(simbols) == 0:
@@ -431,16 +432,16 @@ class MemorySource:
             else:
                 simbol_type = type(simbols[0])
             if simbol_type is str:
-                return self.probability([self.simbol_to_index(simbol) for simbol in simbols])
+                return self.probability([self.simbol_to_index(simbol) for simbol in simbols], state)
             if simbol_type is int:
                 simbols_indexes = simbols
                 return fast_probability_memory(self.pmf, self.unconditional_pmf if state is None else self.pmf[state_index], np.array(simbols_indexes), len(self.alphabet), self.n_extension, self.memory)
         
-    def entropy(self) -> float:
+    def entropy(self, base: int = 2) -> float:
         # TODO: reemplazar por el cálculo de prob condicional cuando lo incluya
         entropy = 0
         for probability, source in zip(self.smf, self.conditional_sources):
-            entropy += probability*source.entropy()
+            entropy += probability*source.entropy(base)
             
         return entropy
     
@@ -457,7 +458,7 @@ class MemorySource:
             for i in range(n_lines//self.n_states):
                 for j in range(self.n_states):
                     simbol = self.index_to_simbol(i)
-                    state = self.index_to_state(i)
+                    state = self.index_to_state(j)
                     print_output += "\n"
                     print_output += simbol
                     print_output += "|"
@@ -468,7 +469,7 @@ class MemorySource:
             for i in range((max_print//2)//self.n_states):
                 for j in range(self.n_states):
                     simbol = self.index_to_simbol(i)
-                    state = self.index_to_state(i)
+                    state = self.index_to_state(j)
                     print_output += "\n"
                     print_output += simbol
                     print_output += "|"
@@ -525,7 +526,7 @@ def entropy_sim():
     source = Source(dist)
 
     print(source)
-    print(f"Entropía de la fuente: {source.entropy():.3g}")
+    print(f"Entropía de la fuente: {source.entropy():.3g} bits")
     print(f"Cadena generada: {source(20)}")
 
 def typical_set_sim():
@@ -541,8 +542,8 @@ def typical_set_sim():
     typical_set_size_relation = len(extended_bin_source_typical_set)/len(extended_bin_source)
 
     # print(extended_bin_source)
-    print(f"Entropía de la fuente: {bin_source.entropy():.3g}")
-    print(f"Entropía de la fuente extendida a {n}: {extended_bin_source.entropy():.3g}")
+    print(f"Entropía de la fuente: {bin_source.entropy():.3g} bits")
+    print(f"Entropía de la fuente extendida a {n}: {extended_bin_source.entropy():.3g} bits")
 
     print(f"Tamaño del conjunto típico de epsilon {epsilon}: {len(extended_bin_source_typical_set)}")
     print(f"Relación de tamaño del conjunto típico sobre el total: {typical_set_size_relation*100:.3g} %")
@@ -591,8 +592,8 @@ def multicharacter_simbols_sim():
     typical_set_size_relation = len(extended_bin_source_typical_set)/len(extended_bin_source)
 
     # print(extended_bin_source)
-    print(f"Entropía de la fuente: {bin_source.entropy():.3g}")
-    print(f"Entropía de la fuente extendida a {n}: {extended_bin_source.entropy():.3g}")
+    print(f"Entropía de la fuente: {bin_source.entropy():.3g} bits")
+    print(f"Entropía de la fuente extendida a {n}: {extended_bin_source.entropy():.3g} bits")
 
     print(f"Tamaño del conjunto típico de epsilon {epsilon}: {len(extended_bin_source_typical_set)}")
     print(f"Relación de tamaño del conjunto típico sobre el total: {typical_set_size_relation*100:.3g} %")
@@ -666,20 +667,20 @@ def text_source_sim():
     text_source = Source(text_dist)
     extended_text_source = Source(text_dist, m)
 
-    print(f"Entropía de la fuente: {text_source.entropy():.3g}")
-    print(f"Entropía de la fuente extendida: {extended_text_source.entropy():.3g}")
+    print(f"Entropía de la fuente: {text_source.entropy():.3g} bits")
+    print(f"Entropía de la fuente extendida: {extended_text_source.entropy():.3g} bits")
     print(extended_text_source(10))
 
 
 def memory_source_sim():
-    alphabet = ["1", "0"]
+    alphabet = ["0", "1"]
     pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.4, 0.6], [0.9, 0.1]])
     source = MemorySource(alphabet, pmf)
     
     print(source)
     
-    print(f"Entropía de la fuente con memoria de orden {source.memory}: {source.entropy()}")
-    print(f"Entropía de la fuente afín: {source.unconditional_source.entropy()}")
+    print(f"Entropía de la fuente con memoria de orden {source.memory}: {source.entropy():.3g} bits")
+    print(f"Entropía de la fuente afín: {source.unconditional_source.entropy():.3g} bits")
 
     print(f"Cadena generada: {source(20)}")
     print(f"Cadena generada con la fuente afín: {source.unconditional_source(20)}")
@@ -687,8 +688,8 @@ def memory_source_sim():
 
 if __name__ == "__main__":
     # entropy_sim()
-    typical_set_sim()
+    # typical_set_sim()
     # multicharacter_simbols_sim()
     # text_source_sim()
-    # memory_source_sim()
+    memory_source_sim()
     
