@@ -126,20 +126,35 @@ class OldSource:
 
 
 @njit(
+    [float32(float32[:], int64[:], int32, int32), float64(float64[:], int64[:], int32, int32)],
+    parallel=True,
+    cache=True,
+    )
+def fast_probability(pmf: np.ndarray, simbol_indexes: np.ndarray, n_base_simbols: int, n_extension: int) -> float:
+    probability = np.ones(len(simbol_indexes))
+    for i in range(len(simbol_indexes)):
+        var_index = simbol_indexes[i]
+        for j in range(n_extension - 1, -1, -1):
+            simbol_index = var_index // (n_base_simbols**j)
+            probability[i] *= pmf[simbol_index]
+            var_index -= simbol_index*(n_base_simbols**j)
+    return np.sum(probability)
+
+@njit(
     [float32(float32[:], int32, int32, int32), float64(float64[:], int32, int32, int32)],
     # parallel=True,
     cache=True,
     )
-def fast_entropy(pmf: np.ndarray, alphabet_len: int, n_extension: int, base: int) -> float:
+def fast_entropy(pmf: np.ndarray, n_base_simbols: int, n_extension: int, base: int) -> float:
     entropy_value = 0
     # extension_pmf = np.zeros(alphabet_len**n_extension)
-    for i in range(alphabet_len**n_extension):
+    for i in range(n_base_simbols**n_extension):
         probability = 1
         var_index = i
         for j in range(n_extension - 1, -1, -1):
-            simbol_index = var_index // (alphabet_len**j)
+            simbol_index = var_index // (n_base_simbols**j)
             probability *= pmf[simbol_index]
-            var_index -= simbol_index*(alphabet_len**j)
+            var_index -= simbol_index*(n_base_simbols**j)
         # extension_pmf[i] = probability
         entropy_value += -np.log2(probability)*probability
     # return np.sum(-np.log2(extension_pmf)*extension_pmf)
@@ -147,34 +162,19 @@ def fast_entropy(pmf: np.ndarray, alphabet_len: int, n_extension: int, base: int
     return entropy_value/np.log2(base)
 
 @njit(
-    [float32(float32[:], int64[:], int32, int32), float64(float64[:], int64[:], int32, int32)],
-    parallel=True,
-    cache=True,
-    )
-def fast_probability(pmf: np.ndarray, simbols: np.ndarray, alphabet_len: int, n_extension: int) -> float:
-    probability = np.ones(len(simbols))
-    for i in range(len(simbols)):
-        var_index = simbols[i]
-        for j in range(n_extension - 1, -1, -1):
-            simbol_index = var_index // (alphabet_len**j)
-            probability[i] *= pmf[simbol_index]
-            var_index -= simbol_index*(alphabet_len**j)
-    return np.sum(probability)
-
-@njit(
     [int64[:](float32[:], float32, float32, int32, int32), int64[:](float64[:], float32, float32, int32, int32)],
     cache=True,
     )
-def fast_typical_set(pmf: np.ndarray, base_entropy: float, epsilon: float, alphabet_len: int, n_extension: int) -> np.ndarray:
+def fast_typical_set(pmf: np.ndarray, base_entropy: float, epsilon: float, n_base_simbols: int, n_extension: int) -> np.ndarray:
     # indexes = np.zeros(alphabet_len**n_extension, int32)
     indexes = []
-    for i in range(alphabet_len**n_extension):
+    for i in range(n_base_simbols**n_extension):
         probability = 1
         var_index = i
         for j in range(n_extension - 1, -1, -1):
-            simbol_index = var_index // (alphabet_len**j)
+            simbol_index = var_index // (n_base_simbols**j)
             probability *= pmf[simbol_index]
-            var_index -= simbol_index*(alphabet_len**j)
+            var_index -= simbol_index*(n_base_simbols**j)
         if 2**(-n_extension*(base_entropy + epsilon)) < probability < 2**(-n_extension*(base_entropy - epsilon)):
             # indexes[i] = 1
             indexes.append(i)
@@ -184,11 +184,14 @@ class Source:
     dist: dict[str, float]
     alphabet: list[str]
     pmf: np.ndarray
+    n_extension: int
+    
+    n_base_simbols: int
+    n_simbols: int
+    simbol_length: int
+    
     cmf: np.ndarray
     base_entropy: float
-    n_extension: int
-    null_character = "\0"
-    simbol_length: int
         
     def __init__(self, dist: dict[str, float] | tuple[Iterable[str], Iterable[float]] | Source, n_extension: int = 1):
         if isinstance(dist, dict):
@@ -197,9 +200,12 @@ class Source:
             self.dist = {simbol: probability for simbol, probability in zip(dist[0], dist[1])}
         if isinstance(dist, Source):
             self.dist = {simbol: probability for simbol, probability in dist.dist.items()}
-        
         self.alphabet = [simbol for simbol in self.dist.keys()]
         self.n_extension = n_extension
+        
+        self.n_base_simbols = len(self.alphabet)
+        self.n_simbols = self.n_base_simbols**self.n_extension
+        self.simbol_length = len(self.alphabet[0])
         
         self.pmf = np.array([float(probability) for probability in self.dist.values()])
         pmf_norm = self.pmf.sum()
@@ -213,24 +219,22 @@ class Source:
         self.cmf /= cmf
         
         self.base_entropy = np.sum(-np.log2(self.pmf)*self.pmf)
-        
-        self.simbol_length = len(self.alphabet[0])
                         
     def index_to_simbol(self, index: int) -> str:
         var_index = index
         simbol = ""
         for i in range(self.n_extension - 1, -1, -1):
-            simbol_index = var_index // (len(self.alphabet)**i)
+            simbol_index = var_index // (self.n_base_simbols**i)
             simbol += self.alphabet[simbol_index]
-            var_index -= simbol_index*(len(self.alphabet)**i)
+            var_index -= simbol_index*(self.n_base_simbols**i)
         return simbol
     
     def simbol_to_index(self, simbol: str) -> int:
         index = 0
         for i in range(self.n_extension):
-            for j in range(len(self.alphabet)):
+            for j in range(self.n_base_simbols):
                 if simbol[i*self.simbol_length:(i + 1)*self.simbol_length] == self.alphabet[j]:
-                    index += j*(len(self.alphabet)**(self.n_extension - i - 1))
+                    index += j*(self.n_base_simbols**(self.n_extension - i - 1))
         return index
     
     def probability(self, simbols: str | int | Iterable[str] | Iterable[int]) -> float:
@@ -250,15 +254,15 @@ class Source:
             if simbol_type is str:
                 return self.probability([self.simbol_to_index(simbol) for simbol in simbols])
             if simbol_type is int:
-                return fast_probability(self.pmf, np.array(simbols), len(self.alphabet), self.n_extension)
+                return fast_probability(self.pmf, np.array(simbols), self.n_base_simbols, self.n_extension)
             
     def entropy(self, base: int = 2) -> float:
         with Time("Entropy") as _:
-            return fast_entropy(self.pmf, len(self.alphabet), self.n_extension, base)
+            return fast_entropy(self.pmf, self.n_base_simbols, self.n_extension, base)
     
     def typical_set(self, epsilon: float = 0.1) -> set[str]:
         with Time("Typical set") as _:
-            typical_set_indexes = fast_typical_set(self.pmf, self.base_entropy, epsilon, len(self.alphabet), self.n_extension)
+            typical_set_indexes = fast_typical_set(self.pmf, self.base_entropy, epsilon, self.n_base_simbols, self.n_extension)
 
             return {self.index_to_simbol(index) for index in typical_set_indexes}
     
@@ -269,7 +273,7 @@ class Source:
             print_output += "\t"
             print_output_len += 6
         print_output += "Probability"
-        n_lines = len(self.alphabet)**self.n_extension
+        n_lines = self.n_simbols
         max_print = 10
         if n_lines < max_print:
             for i in range(n_lines):
@@ -306,32 +310,94 @@ class Source:
         return output
     
     def __len__(self) -> int:
-        return len(self.alphabet)**self.n_extension
+        return self.n_simbols
+
+UNKNOWN_STATE_INDEX = -1
 
 @njit(
-    [float32(float32[:, :], float32[:], int64[:], int32, int32, int32), float64(float64[:, :], float64[:], int64[:], int32, int32, int32)],
+    [float32(float32[:, :], float32[:], int32, int64[:], int32, int32, int32), float64(float64[:, :], float64[:], int32, int64[:], int32, int32, int32)],
     parallel=True,
     cache=True,
     )
-def fast_probability_memory(pmf: np.ndarray, initial_pmf: np.ndarray, simbols: np.ndarray, alphabet_len: int, n_extension: int, memory: int) -> float:
-    probability = np.ones(len(simbols))
-    for i in range(len(simbols)):
-        probability[i] = initial_pmf[simbols[i]]
-        # var_index = simbols[i]
-        # for j in range(n_extension - 1, -1, -1):
-        #     simbol_index = var_index // (alphabet_len**j)
-        #     probability[i] *= pmf[simbol_index]
-        #     var_index -= simbol_index*(alphabet_len**j)
+def fast_probability_memory(pmf: np.ndarray, state_pmf: np.ndarray, initial_state_index: int, simbol_indexes: np.ndarray, n_base_simbols: int, n_extension: int, memory: int) -> float:
+    probability = np.ones(len(simbol_indexes))
+    for i in range(len(simbol_indexes)):
+        
+        if initial_state_index == UNKNOWN_STATE_INDEX:
+            probability[i] = 0
+            for k in range(n_base_simbols**memory):
+                variable_simbol_index = simbol_indexes[i]
+                current_state_index = k
+                conditional_probability = 1
+                
+                for j in range(min([memory, n_extension])):
+                    single_simbol_index = variable_simbol_index // (n_base_simbols**(n_extension - 1 - j))
+                    conditional_probability *= pmf[current_state_index, single_simbol_index]
+                    variable_simbol_index -= single_simbol_index*(n_base_simbols**(n_extension - 1 - j))
+
+                    new_state_index = (current_state_index % (n_base_simbols**(memory - 1)))
+                    new_state_index *= n_base_simbols
+                    new_state_index += single_simbol_index
+                    current_state_index = new_state_index
+                probability[i] += conditional_probability*state_pmf[k]
+            for j in range(memory, n_extension):
+                single_simbol_index = variable_simbol_index // (n_base_simbols**(n_extension - 1 - j))
+                probability[i] *= pmf[current_state_index, single_simbol_index]
+                variable_simbol_index -= single_simbol_index*(n_base_simbols**(n_extension - 1 - j))
+
+                new_state_index = (current_state_index % (n_base_simbols**(memory - 1)))
+                new_state_index *= n_base_simbols
+                new_state_index += single_simbol_index
+                current_state_index = new_state_index
+        else:
+            current_state_index = initial_state_index
+            for j in range(n_extension):
+                single_simbol_index = variable_simbol_index // (n_base_simbols**(n_extension - 1 - j))
+                probability[i] *= pmf[current_state_index, single_simbol_index]
+                variable_simbol_index -= single_simbol_index*(n_base_simbols**(n_extension - 1 - j))
+
+                new_state_index = (current_state_index % (n_base_simbols**(memory - 1)))
+                new_state_index *= n_base_simbols
+                new_state_index += single_simbol_index
+                current_state_index = new_state_index
+        
     return np.sum(probability)
+
+@njit(
+    [float64[:](float32[:, :], float32[:], int32, int32, int32), float64[:](float64[:, :], float64[:], int32, int32, int32)],
+    parallel=True,
+    cache=True,
+    )
+def fast_unconditional_pmf_memory(pmf: np.ndarray, state_pmf: np.ndarray, n_base_simbols: int, n_extension: int, memory: int) -> float:
+    unconditional_pmf = np.zeros(n_base_simbols**n_extension)
+    for i in range(n_base_simbols**n_extension):
+        for k in range(n_base_simbols**memory):
+            variable_simbol_index = i
+            current_state_index = k
+            conditional_probability = 1
+            
+            for j in range(n_extension):
+                single_simbol_index = variable_simbol_index // (n_base_simbols**(n_extension - 1 - j))
+                conditional_probability *= pmf[current_state_index, single_simbol_index]
+                variable_simbol_index -= single_simbol_index*(n_base_simbols**(n_extension - 1 - j))
+
+                new_state_index = (current_state_index % (n_base_simbols**(memory - 1)))
+                new_state_index *= n_base_simbols
+                new_state_index += single_simbol_index
+                current_state_index = new_state_index
+            
+            unconditional_pmf[i] += conditional_probability*state_pmf[k]
+                
+    return unconditional_pmf
 
 @njit(
     [int64[:](float32[:, :], float32[:], float32, float32, int32, int32, int32, int32), int64[:](float64[:, :], float64[:], float32, float32, int32, int32, int32, int32)],
     cache=True,
     )
-def fast_typical_set_memory(pmf: np.ndarray, initial_pmf: np.ndarray, base_entropy: float, epsilon: float, alphabet_len: int, n_extension: int, memory: int, n_states: int) -> np.ndarray:
+def fast_typical_set_memory(pmf: np.ndarray, initial_pmf: np.ndarray, base_entropy: float, epsilon: float, n_base_simbols: int, n_extension: int, memory: int, n_states: int) -> np.ndarray:
     # indexes = np.zeros(alphabet_len**n_extension, int32)
     indexes = []
-    for i in range(alphabet_len):
+    for i in range(n_base_simbols):
         probability = initial_pmf[i]
         if 2**(-n_extension*(base_entropy + epsilon)) < probability < 2**(-n_extension*(base_entropy - epsilon)):
             # indexes[i] = 1
@@ -339,22 +405,26 @@ def fast_typical_set_memory(pmf: np.ndarray, initial_pmf: np.ndarray, base_entro
     return np.array(indexes, int64)
 
 class MemorySource:
-    # no puede ser multicaracter porque no tiene sentido, multicaracter es una codificación de una fuente con un solo caracter por símbolo
     alphabet: list[str]
     pmf: np.ndarray
     n_extension: int
     
+    n_base_simbols: int
+    n_simbols: int
+    simbol_length: int
+    
     n_states: int
     memory: int
+    
     cmf: np.ndarray
     conditional_sources: list[Source]
+    base_entropy: float
     
     state_source: Source
     transition_matrix: np.ndarray
-    smf: np.ndarray
-    unconditional_pmf: np.ndarray
-    unconditional_source: Source
-    
+    state_pmf: np.ndarray
+    unconditional_simple_pmf: np.ndarray
+        
     def __init__(self, dist: tuple[Iterable[str], np.ndarray] | Source, n_extension: int = 1):
         if isinstance(dist, tuple):
             self.alphabet = [simbol for simbol in dist[0]]
@@ -362,63 +432,88 @@ class MemorySource:
         if isinstance(dist, Source):
             self.alphabet = [simbol for simbol in dist.alphabet]
             self.pmf = np.copy(dist.pmf)
-        
-        assert len(self.alphabet) == self.pmf.shape[1]
-        assert np.log2(self.pmf.shape[0]) == int(np.log2(self.pmf.shape[0]))
-        
-        self.alphabet = self.alphabet
         self.n_extension = n_extension
+        assert len(self.alphabet) == self.pmf.shape[1]
+        
+        self.n_base_simbols = len(self.alphabet)
+        self.n_simbols = self.n_base_simbols**self.n_extension
+        self.simbol_length = len(self.alphabet[0])
+        assert all([len(simbol) == self.simbol_length for simbol in self.alphabet])
+        
         self.n_states = self.pmf.shape[0]
-        self.memory = int(np.log2(self.n_states))
+        self.memory = np.emath.logn(self.n_base_simbols, self.n_states)
+        assert self.memory == int(self.memory)
+        self.memory = int(self.memory)
+        self.memory_extension_ratio = int(np.ceil(self.memory/self.n_extension))
 
-        distributions = [{self.alphabet[i]: self.pmf[j, i] for i in range(len(self.alphabet))} for j in range(self.n_states)]
+        distributions = [{self.alphabet[i]: self.pmf[j, i] for i in range(self.n_base_simbols)} for j in range(self.n_states)]
         self.conditional_sources = [Source(dist) for dist in distributions]
-        self.state_source = Source(distributions[0], self.memory)
         
         self.pmf = np.zeros(self.pmf.shape)
         self.cmf = np.zeros(self.pmf.shape)
         for i in range(self.n_states):
             self.pmf[i, :] = self.conditional_sources[i].pmf
             cmf = 0
-            for j in range(len(self.alphabet)):
+            for j in range(self.n_base_simbols):
                 cmf += self.pmf[i, j]
                 self.cmf[i, j] = cmf
             self.cmf[i, :] /= cmf
 
-        # TODO: si pmf ya es cuadrada no hace falta esto
+        # self.base_entropy = fast_entropy_memory(n = 1)
+        
+        self.state_pmf = np.zeros(self.n_states)
+        self.state_source = Source(distributions[0], self.memory)
         self.transition_matrix = np.zeros((self.n_states, self.n_states))
         for i in range(self.n_states):
-            for j in range(len(self.alphabet)):
-                new_state = self.state_source.index_to_simbol(i)
-                new_state += self.alphabet[j]
-                new_state = new_state[self.n_extension:]
-                new_state_index = self.state_source.simbol_to_index(new_state)
-                self.transition_matrix[i, new_state_index] = self.pmf[i, j]
-        
+            for j in range(self.n_simbols):
+                new_state_index = self.new_state_index(j, i)
+                self.transition_matrix[i, new_state_index] += self.probability(j, i)
         values, vectors = np.linalg.eig(self.transition_matrix.transpose())
         eigenvector_index = np.argmin(abs(values - 1))
         eigenvector = np.abs(vectors[:, eigenvector_index])
-        self.smf = eigenvector/np.sum(eigenvector)
-        self.unconditional_pmf = np.matmul(self.smf, self.pmf)
-        unconditional_dist = {simbol: probability for simbol, probability in zip(self.alphabet, self.unconditional_pmf)}
-        self.unconditional_source = Source(unconditional_dist)
+        self.state_pmf = eigenvector/np.sum(eigenvector)
+        self.unconditional_simple_pmf = np.matmul(self.state_pmf, self.pmf)
         
-        # print(self.transition_matrix)
-        # print(self.smf)
-        # print(np.linalg.matrix_power(self.transition_matrix, 100))
-        # print(self.unconditional_pmf)
-        
+        print(f"Matriz de transición con memoria {self.memory} y extensión {self.n_extension}: {self.transition_matrix}")
+        print(f"Probabilidad de estados con memoria y extensión {self.n_extension}: {self.memory} {self.state_pmf}")
+        print(f"Probabilidad incondicional simple con memoria {self.memory} y extensión {self.n_extension}: {self.unconditional_simple_pmf}")
+        # print(f"Límite de la matriz de transición con memoria {self.memory} y extensión {self.n_extension}: {np.linalg.matrix_power(self.transition_matrix, 20)}")
+                
     def index_to_simbol(self, index: int) -> str:
-        return self.unconditional_source.index_to_simbol(index)
+        var_index = index
+        simbol = ""
+        for i in range(self.n_extension - 1, -1, -1):
+            simbol_index = var_index // (self.n_base_simbols**i)
+            simbol += self.alphabet[simbol_index]
+            var_index -= simbol_index*(self.n_base_simbols**i)
+        return simbol
         
     def simbol_to_index(self, simbol: str) -> int:
-        return self.unconditional_source.simbol_to_index(simbol)
+        index = 0
+        for i in range(self.n_extension):
+            for j in range(self.n_base_simbols):
+                if simbol[i*self.simbol_length:(i + 1)*self.simbol_length] == self.alphabet[j]:
+                    index += j*(self.n_base_simbols**(self.n_extension - i - 1))
+        return index
         
     def index_to_state(self, index: int) -> str:
         return self.state_source.index_to_simbol(index)
         
     def state_to_index(self, simbol: str) -> int:
         return self.state_source.simbol_to_index(simbol)
+
+    def new_state_index(self, simbol: str | int, state: str | int) -> int:
+        simbol_index = simbol if isinstance(simbol, int) else self.simbol_to_index(simbol)
+        state_index = state if isinstance(state, int) else self.state_to_index(state)
+        
+        if self.n_states > self.n_simbols:
+            new_state_index = (state_index % (self.n_base_simbols**(self.memory - self.n_extension)))
+            new_state_index *= self.n_base_simbols**self.n_extension
+            new_state_index += simbol_index
+        else:
+            new_state_index = simbol_index % self.n_states
+        
+        return new_state_index
         
     def probability(self, simbols: str | int | Iterable[str] | Iterable[int], state: str | int = None) -> float:
         state_index = self.state_to_index(state) if isinstance(state, str) else state
@@ -439,15 +534,23 @@ class MemorySource:
                 return self.probability([self.simbol_to_index(simbol) for simbol in simbols], state)
             if simbol_type is int:
                 simbols_indexes = simbols
-                return fast_probability_memory(self.pmf, self.unconditional_pmf if state is None else self.pmf[state_index], np.array(simbols_indexes), len(self.alphabet), self.n_extension, self.memory)
+                initial_state_index = UNKNOWN_STATE_INDEX if state is None else state_index
+                return fast_probability_memory(self.pmf, self.state_pmf, initial_state_index, np.array(simbols_indexes), self.n_base_simbols, self.n_extension, self.memory)
         
     def entropy(self, base: int = 2) -> float:
         # TODO: reemplazar por el cálculo de prob condicional cuando lo incluya
         entropy = 0
-        for probability, source in zip(self.smf, self.conditional_sources):
+        for probability, source in zip(self.state_pmf, self.conditional_sources):
             entropy += probability*source.entropy(base)
             
         return entropy
+    
+    def unconditional_source(self) -> Source:
+        unconditional_pmf = fast_unconditional_pmf_memory(self.pmf, self.state_pmf, self.n_base_simbols, self.n_extension, self.memory)
+        unconditional_alphabet = [self.index_to_simbol(i) for i in range(self.n_simbols)]
+        unconditional_dist = {simbol: probability for simbol, probability in zip(unconditional_alphabet, unconditional_pmf)}
+
+        return Source(unconditional_dist)
     
     def __repr__(self) -> str:
         print_output = "Simbol\t"
@@ -456,7 +559,7 @@ class MemorySource:
             print_output += "\t"
             print_output_len += 6
         print_output += "Probability"
-        n_lines = self.n_states*len(self.alphabet)**self.n_extension
+        n_lines = self.n_states*self.n_simbols
         max_print = 40
         if n_lines < max_print:
             for i in range(n_lines//self.n_states):
@@ -518,7 +621,7 @@ class MemorySource:
         return output
     
     def __len__(self) -> int:
-        return len(self.unconditional_source)
+        return self.n_simbols
 
 def entropy_sim():
     dist = {
@@ -679,17 +782,22 @@ def text_source_sim():
 def memory_source_sim():
     alphabet = ["0", "1"]
     pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.4, 0.6], [0.9, 0.1]])
-    source = MemorySource((alphabet, pmf))
-    
-    print(source)
-    
-    print(f"Entropía de la fuente con memoria de orden {source.memory}: {source.entropy():.3g} bits")
-    print(f"Entropía de la fuente afín: {source.unconditional_source.entropy():.3g} bits")
+    source_1 = MemorySource((alphabet, pmf))
+    source_2 = MemorySource((alphabet, pmf), 2)
+    source_3 = MemorySource((alphabet, pmf), 3)
+    source_1_unconditional = source_1.unconditional_source()
+    source_2_unconditional = source_2.unconditional_source()
+    source_3_unconditional = source_3.unconditional_source()
 
-    print(f"Cadena generada: {source(20)}")
-    print(f"Cadena generada con la fuente afín: {source.unconditional_source(20)}")
+    # print(source)
+    
+    # print(f"Entropía de la fuente con memoria de orden {source.memory}: {source.entropy():.3g} bits")
+    # print(f"Entropía de la fuente afín: {source.unconditional_source.entropy():.3g} bits")
 
-def binary_output_sim():
+    # print(f"Cadena generada: {source(20)}")
+    # print(f"Cadena generada con la fuente afín: {source.unconditional_source(20)}")
+
+def compression_sim():
     bin_dist = {  # contrastar 0.9 - 0.1 vs 0.5 - 0.5
         "0": 0.1,
         "1": 0.9,
@@ -700,9 +808,9 @@ def binary_output_sim():
     
     current_dir_path = Path.cwd()
     output_dir_path = current_dir_path.joinpath("outputs")
-    source_output_path = output_dir_path.joinpath("entropy_binary_output_sim_source_output")
-    random_output_path = output_dir_path.joinpath("entropy_binary_output_sim_random_output")
-    semirandom_output_path = output_dir_path.joinpath("entropy_binary_output_sim_semirandom_output")
+    source_output_path = output_dir_path.joinpath("entropy_compression_sim_source_output")
+    random_output_path = output_dir_path.joinpath("entropy_compression_sim_random_output")
+    semirandom_output_path = output_dir_path.joinpath("entropy_compression_sim_semirandom_output")
     
     output_size = 8000*2**10
     expected_source_output_compressed_size = output_size*entropy
@@ -730,7 +838,7 @@ if __name__ == "__main__":
     # typical_set_sim()
     # multicharacter_simbols_sim()
     # text_source_sim()
-    # memory_source_sim()
-    binary_output_sim()
+    memory_source_sim()
+    # compression_sim()
     pass
     
