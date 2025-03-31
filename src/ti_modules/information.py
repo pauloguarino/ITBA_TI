@@ -372,8 +372,25 @@ def fast_unconditional_pmf_memory(pmf: np.ndarray, state_pmf: np.ndarray, n_base
 def fast_typical_set_memory(pmf: np.ndarray, state_pmf: np.ndarray, base_entropy: float, epsilon: float, n_base_simbols: int, n_extension: int, memory: int) -> np.ndarray:
     # indexes = np.zeros(alphabet_len**n_extension, int32)
     indexes = []
-    for i in range(n_base_simbols):
-        probability = initial_pmf[i]
+    for i in range(n_base_simbols**n_extension):
+        probability = 0
+        for k in range(n_base_simbols**memory):
+            variable_simbol_index = i
+            current_state_index = k
+            conditional_probability = 1
+            
+            for j in range(n_extension):
+                single_simbol_index = variable_simbol_index // (n_base_simbols**(n_extension - 1 - j))
+                conditional_probability *= pmf[current_state_index, single_simbol_index]
+                variable_simbol_index -= single_simbol_index*(n_base_simbols**(n_extension - 1 - j))
+
+                new_state_index = (current_state_index % (n_base_simbols**(memory - 1)))
+                new_state_index *= n_base_simbols
+                new_state_index += single_simbol_index
+                current_state_index = new_state_index
+            
+            probability += conditional_probability*state_pmf[k]
+            
         if 2**(-n_extension*(base_entropy + epsilon)) < probability < 2**(-n_extension*(base_entropy - epsilon)):
             # indexes[i] = 1
             indexes.append(i)
@@ -533,6 +550,11 @@ class MemorySource:
         unconditional_dist = {simbol: probability for simbol, probability in zip(unconditional_alphabet, unconditional_pmf)}
 
         return Source(unconditional_dist)
+    
+    def typical_set(self, epsilon: float = 0.1) -> set[str]:
+        typical_set_indexes = fast_typical_set_memory(self.pmf, self.state_pmf, self.base_entropy, epsilon, self.n_base_simbols, self.n_extension, self.memory)
+
+        return {self.index_to_simbol(index) for index in typical_set_indexes}
     
     def __repr__(self) -> str:
         print_output = "Simbol\t"
