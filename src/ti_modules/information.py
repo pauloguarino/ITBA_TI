@@ -3,30 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from numba import njit, float32, float64, int32, int64
 import numpy as np
-import time
-from types import TracebackType
 
-class Time:
-    name: str
-    start_time: float
-    stop_time: float
-    
-    def __init__(self, name: str):
-        self.name = name
-    
-    def __enter__(self) -> Time:
-        self.start_time = time.perf_counter()
-        return self
-    
-    def __exit__(
-        self,
-        type_: type[BaseException] | None,
-        value: BaseException | None,
-        traceback: TracebackType | None,
-    ) -> bool | None:
-        self.stop_time = time.perf_counter()
-        # print(f"{self.name} time: {self.stop_time - self.start_time:.3g} s")
-    
 class OldSource:
     base_source: OldSource
     dist: dict[str, float]
@@ -42,45 +19,43 @@ class OldSource:
         return self.base_source.simbols
 
     def __init__(self, dist: dict[str, float], epsilon: float = 0.1, base_source: OldSource = None):
-        with Time("Init") as _:
-            self.base_source = self if base_source is None else base_source
+        self.base_source = self if base_source is None else base_source
+        
+        self.dist = dist
+        
+        self.simbols = [simbol for simbol in dist.keys()]
+        
+        self.pmf = np.array([float(probability) for probability in dist.values()])
+        pmf_norm = self.pmf.sum()
+        self.pmf /= pmf_norm
+        for simbol in self.dist.keys():
+            self.dist[simbol] = self.dist[simbol]/pmf_norm
+        
+        self.cmf = np.zeros(len(self.pmf))
+        cmf = 0
+        for i in range(len(self.pmf)):
+            cmf += self.pmf[i]
+            self.cmf[i] = cmf
+        self.cmf /= cmf
+        
+        self.entropy = np.sum(-np.log2(self.pmf)*self.pmf)
+        
+        self.epsilon = epsilon
+        self.typical_set = set()
+        for simbol, probability in self.dist.items():
+            if 2**(-len(self.simbols[0])*(self.base_source.entropy + self.epsilon)) < probability < 2**(-len(self.simbols[0])*(self.base_source.entropy - self.epsilon)):
+                self.typical_set.add(simbol)
             
-            self.dist = dist
-            
-            self.simbols = [simbol for simbol in dist.keys()]
-            
-            self.pmf = np.array([float(probability) for probability in dist.values()])
-            pmf_norm = self.pmf.sum()
-            self.pmf /= pmf_norm
-            for simbol in self.dist.keys():
-                self.dist[simbol] = self.dist[simbol]/pmf_norm
-            
-            self.cmf = np.zeros(len(self.pmf))
-            cmf = 0
-            for i in range(len(self.pmf)):
-                cmf += self.pmf[i]
-                self.cmf[i] = cmf
-            self.cmf /= cmf
-            
-            self.entropy = np.sum(-np.log2(self.pmf)*self.pmf)
-            
-            self.epsilon = epsilon
-            self.typical_set = set()
-            for simbol, probability in self.dist.items():
-                if 2**(-len(self.simbols[0])*(self.base_source.entropy + self.epsilon)) < probability < 2**(-len(self.simbols[0])*(self.base_source.entropy - self.epsilon)):
-                    self.typical_set.add(simbol)
-                
     def extend(self, n: int) -> OldSource:
-        with Time("Extend") as _:
-            if n < 2:
-                return self
+        if n < 2:
+            return self
+        
+        extended_dist = dict()
+        aux_dist = dict()
+        for simbol, probability in self.dist.items():
+            extended_dist[simbol] = probability
             
-            extended_dist = dict()
-            aux_dist = dict()
-            for simbol, probability in self.dist.items():
-                extended_dist[simbol] = probability
-                
-            for i in range(n - 1):
+        for i in range(n - 1):
                 aux_dist = dict()
                 for extended_simbol, extended_probability in extended_dist.items():
                     for simbol, probability in self.dist.items():
@@ -258,14 +233,12 @@ class Source:
                 return fast_probability(self.pmf, np.array(simbols), self.n_base_simbols, self.n_extension)
             
     def entropy(self, base: int = 2) -> float:
-        with Time("Entropy") as _:
-            return fast_entropy(self.pmf, self.n_base_simbols, self.n_extension, base)
+        return fast_entropy(self.pmf, self.n_base_simbols, self.n_extension, base)
     
     def typical_set(self, epsilon: float = 0.1) -> set[str]:
-        with Time("Typical set") as _:
-            typical_set_indexes = fast_typical_set(self.pmf, self.base_entropy, epsilon, self.n_base_simbols, self.n_extension)
+        typical_set_indexes = fast_typical_set(self.pmf, self.base_entropy, epsilon, self.n_base_simbols, self.n_extension)
 
-            return {self.index_to_simbol(index) for index in typical_set_indexes}
+        return {self.index_to_simbol(index) for index in typical_set_indexes}
     
     def __repr__(self) -> str:
         print_output = "Simbol\t"
@@ -393,10 +366,10 @@ def fast_unconditional_pmf_memory(pmf: np.ndarray, state_pmf: np.ndarray, n_base
     return unconditional_pmf
 
 @njit(
-    [int64[:](float32[:, :], float32[:], float32, float32, int32, int32, int32, int32), int64[:](float64[:, :], float64[:], float32, float32, int32, int32, int32, int32)],
+    [int64[:](float32[:, :], float32[:], float32, float32, int32, int32, int32), int64[:](float64[:, :], float64[:], float32, float32, int32, int32, int32)],
     cache=True,
     )
-def fast_typical_set_memory(pmf: np.ndarray, initial_pmf: np.ndarray, base_entropy: float, epsilon: float, n_base_simbols: int, n_extension: int, memory: int, n_states: int) -> np.ndarray:
+def fast_typical_set_memory(pmf: np.ndarray, state_pmf: np.ndarray, base_entropy: float, epsilon: float, n_base_simbols: int, n_extension: int, memory: int) -> np.ndarray:
     # indexes = np.zeros(alphabet_len**n_extension, int32)
     indexes = []
     for i in range(n_base_simbols):
