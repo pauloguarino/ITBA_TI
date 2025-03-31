@@ -350,6 +350,7 @@ def fast_probability_memory(pmf: np.ndarray, state_pmf: np.ndarray, initial_stat
                 new_state_index += single_simbol_index
                 current_state_index = new_state_index
         else:
+            variable_simbol_index = simbol_indexes[i]
             current_state_index = initial_state_index
             for j in range(n_extension):
                 single_simbol_index = variable_simbol_index // (n_base_simbols**(n_extension - 1 - j))
