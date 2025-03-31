@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from tqdm import tqdm
 
 from ti_modules import information
 
@@ -45,7 +46,7 @@ def typical_set_sim():
     
     sources = [information.Source(bin_dist, i) for i in range(1, n_extension_max + 1)]
     entropies = [source.entropy() for source in sources]
-    typical_sets = [source.typical_set(epsilon) for source in sources]
+    typical_sets = [source.typical_set(epsilon) for source in tqdm(sources)]
     typical_sets_lengths = np.array([len(typical_set) for typical_set in typical_sets])
     typical_sets_relative_sizes = np.array([length/len(source) for source, length in zip(sources, typical_sets_lengths)])
     typical_sets_probabilities = np.array([source.probability(typical_set) for source, typical_set in zip(sources, typical_sets)])
@@ -89,12 +90,12 @@ def multicharacter_simbols_sim():
     print(f"Relación de tamaño del conjunto típico sobre el total: {typical_set_size_relation*100:.3g} %")
     print(f"Probabilidad acumulada del conjunto típico: {extended_bin_source.probability(extended_bin_source_typical_set):.3g}")
 
-    N = 12
+    n_extension_max = 12
     epsilon = 0.3 # variar entre 0.2 a 0.4, énfasis en 0.3
     
-    sources = [information.Source(bin_dist, i) for i in range(1, N + 1)]
+    sources = [information.Source(bin_dist, i) for i in range(1, n_extension_max + 1)]
     entropies = [source.entropy() for source in sources]
-    typical_sets = [source.typical_set(epsilon) for source in sources]
+    typical_sets = [source.typical_set(epsilon) for source in tqdm(sources)]
     typical_sets_lengths = np.array([len(typical_set) for typical_set in typical_sets])
     typical_sets_relative_sizes = np.array([length/len(source) for source, length in zip(sources, typical_sets_lengths)])
     typical_sets_probabilities = np.array([source.probability(typical_set) for source, typical_set in zip(sources, typical_sets)])
@@ -103,17 +104,17 @@ def multicharacter_simbols_sim():
     theoretical_typical_sets_probabilities_limit = 1 - epsilon
 
     plt.figure()
-    plt.plot(range(1, N + 1), entropies)
+    plt.plot(range(1, n_extension_max + 1), entropies)
     plt.show()
     
     plt.figure()
-    plt.plot(range(1, N + 1), typical_sets_relative_sizes*100)
-    plt.plot(range(1, N + 1), theoretical_typical_sets_relative_sizes*100)
+    plt.plot(range(1, n_extension_max + 1), typical_sets_relative_sizes*100)
+    plt.plot(range(1, n_extension_max + 1), theoretical_typical_sets_relative_sizes*100)
     plt.show()
     
     plt.figure()
-    plt.plot(range(1, N + 1), typical_sets_probabilities)
-    plt.plot(range(1, N + 1), [theoretical_typical_sets_probabilities_limit for i in range(N)])
+    plt.plot(range(1, n_extension_max + 1), typical_sets_probabilities)
+    plt.plot(range(1, n_extension_max + 1), [theoretical_typical_sets_probabilities_limit for i in range(n_extension_max)])
     plt.show()
 
 def text_source_sim():
@@ -163,9 +164,9 @@ def text_source_sim():
 def memory_source_sim():
     alphabet = ["0", "1"]
     # pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
-    pmf = np.array([[0.9, 0.1], [0.01, 0.99], [0.99, 0.01], [0.1, 0.9]])
+    pmf = np.array([[0.75, 0.25], [0.95, 0.05], [0, 1], [0.5, 0.5]])
     # pmf = np.array([[0.2, 0.8], [0.3, 0.7], [0.4, 0.6], [0.9, 0.1], [0.5, 0.5], [0.2, 0.8], [0.45, 0.55], [0.85, 0.15]])
-    n_extension = 1
+    n_extension = 8
     n_generated = 50
     source = information.MemorySource((alphabet, pmf), n_extension)
     unconditional_source = source.unconditional_source()
@@ -188,12 +189,25 @@ def memory_source_sim():
     print(f"Cadena generada con la fuente afín: {unconditional_source(n_generated)}")
 
 def memoryless_source_sim():
-    pass
+    alphabet = ["0", "1"]
+    pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
+    # pmf = np.array([[0.2, 0.8], [0.3, 0.7], [0.4, 0.6], [0.9, 0.1], [0.5, 0.5], [0.2, 0.8], [0.45, 0.55], [0.85, 0.15]])
+    n_extension_max = 15
+    
+    memory_sources = [information.MemorySource((alphabet, pmf), i) for i in range(1, n_extension_max + 1)]
+    memoryless_sources = [memory_source.unconditional_source() for memory_source in memory_sources]
+    memory_entropies = np.array([source.entropy() for source in memory_sources])
+    memoryless_entropies = np.array([source.entropy() for source in memoryless_sources])
+
+    plt.figure()
+    plt.plot(range(1, n_extension_max + 1), memoryless_entropies - memory_entropies)
+    plt.show()
 
 def compression_sim():
     alphabet = ["0", "1"]
     pmf = np.array([0.1, 0.9])
-    memory_pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.8, 0.2], [0.99, 0.01]])
+    # memory_pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.8, 0.2], [0.99, 0.01]])
+    memory_pmf = np.array([[0.75, 0.25], [0.95, 0.05], [0, 1], [0.5, 0.5]])
     output_size = 8000*2**10
     fixed_bits_per_byte = 3
     
@@ -220,7 +234,7 @@ def compression_sim():
     expected_memory_source_output_compressed_size = output_size*memory_source_entropy_per_simbol
     expected_memoryless_source_output_compressed_size = output_size*memoryless_source_entropy_per_simbol
     mask = 2**(8 - fixed_bits_per_byte) - 1
-    expected_semirandom_output_compressed_size = output_size*fixed_bits_per_byte/8
+    expected_semirandom_output_compressed_size = output_size*(8 - fixed_bits_per_byte)/8
 
     print(f"Tamaño de los archivos de salida: {output_size/1024:.0f} Kb")
     print(f"Tamaño esperado del archivo generado por la fuente comprimido: {expected_source_output_compressed_size/1024:.0f} Kb")
@@ -228,24 +242,74 @@ def compression_sim():
     print(f"Tamaño esperado del archivo generado por la fuente afín comprimido: {expected_memoryless_source_output_compressed_size/1024:.0f} Kb")
     print(f"Tamaño esperado del archivo semialeatorio comprimido: {expected_semirandom_output_compressed_size/1024:.0f} Kb")
     
-    with open(source_output_path, "bw") as file:
-        for _ in range(output_size):
-            file.write(bytes([source.simbol_to_index(source())]))
+    # with open(source_output_path, "bw") as file:
+    #     for _ in tqdm(range(output_size)):
+    #         file.write(bytes([source.simbol_to_index(source())]))
 
+    # me da demasiado pesado este, puede ser porque codifica de a bytes, tendría que tener memoria de más de 1 byte (múltiples bytes)
     with open(memory_source_output_path, "bw") as file:
-        for _ in range(output_size):
+        for _ in tqdm(range(output_size)):
             file.write(bytes([memory_source.simbol_to_index(memory_source())]))
 
     with open(memoryless_source_output_path, "bw") as file:
-        for _ in range(output_size):
+        for _ in tqdm(range(output_size)):
             file.write(bytes([memoryless_source.simbol_to_index(memoryless_source())]))       
     
-    with open(random_output_path, "bw") as random_file:
-        with open(semirandom_output_path, "bw") as semirandom_file:
-            for _ in range(output_size):
-                byte = np.random.randint(256)
-                random_file.write(bytes([byte]))
-                semirandom_file.write(bytes([byte & mask]))
+    # with open(random_output_path, "bw") as random_file:
+    #     with open(semirandom_output_path, "bw") as semirandom_file:
+    #         for _ in tqdm(range(output_size)):
+    #             byte = np.random.randint(256)
+    #             random_file.write(bytes([byte]))
+    #             semirandom_file.write(bytes([byte & mask]))
+
+def memory_typical_set_sim():
+    alphabet = ["0", "1"]
+    # pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.4, 0.6], [0.8, 0.2]])
+    pmf = np.array([[0.2, 0.8], [0.3, 0.7], [0.4, 0.6], [0.9, 0.1], [0.5, 0.5], [0.2, 0.8], [0.45, 0.55], [0.85, 0.15]])
+    n_extension_max = 4
+    
+    n_extension = 15
+    epsilon = 0.3 # variar entre 0.2 a 0.4
+    bin_source = information.MemorySource((alphabet, pmf))
+    extended_bin_source = information.MemorySource((alphabet, pmf), n_extension)
+    extended_bin_source_typical_set = extended_bin_source.typical_set(epsilon)
+    typical_set_size_relation = len(extended_bin_source_typical_set)/len(extended_bin_source)
+
+    print(extended_bin_source)
+    
+    print(f"Entropía de la fuente: {bin_source.entropy():.3g} bits")
+    print(f"Entropía de la fuente extendida a {n_extension}: {extended_bin_source.entropy():.3g} bits")
+
+    print(f"Tamaño del conjunto típico de epsilon {epsilon}: {len(extended_bin_source_typical_set)}")
+    print(f"Relación de tamaño del conjunto típico sobre el total: {typical_set_size_relation*100:.3g} %")
+    print(f"Probabilidad acumulada del conjunto típico: {extended_bin_source.probability(extended_bin_source_typical_set):.3g}")
+
+    n_extension_max = 20
+    epsilon = 0.2 # variar entre 0.2 a 0.4, énfasis en 0.3
+    
+    sources = [information.MemorySource((alphabet, pmf), i) for i in range(1, n_extension_max + 1)]
+    entropies = [source.entropy() for source in sources]
+    typical_sets = [source.typical_set(epsilon) for source in tqdm(sources)]
+    typical_sets_lengths = np.array([len(typical_set) for typical_set in typical_sets])
+    typical_sets_relative_sizes = np.array([length/len(source) for source, length in zip(sources, typical_sets_lengths)])
+    typical_sets_probabilities = np.array([source.probability(typical_set) for source, typical_set in zip(sources, typical_sets)])
+
+    theoretical_typical_sets_relative_sizes = np.array([2**(source.n_extension*source.base_entropy)/len(source) for source in sources])
+    theoretical_typical_sets_probabilities_limit = 1 - epsilon
+
+    plt.figure()
+    plt.plot(range(1, n_extension_max + 1), entropies)
+    plt.show()
+    
+    plt.figure()
+    plt.plot(range(1, n_extension_max + 1), typical_sets_relative_sizes*100)
+    plt.plot(range(1, n_extension_max + 1), theoretical_typical_sets_relative_sizes*100)
+    plt.show()
+    
+    plt.figure()
+    plt.plot(range(1, n_extension_max + 1), typical_sets_probabilities)
+    plt.plot(range(1, n_extension_max + 1), [theoretical_typical_sets_probabilities_limit for i in range(n_extension_max)])
+    plt.show()
 
 if __name__ == "__main__":
     # entropy_sim()
@@ -254,6 +318,7 @@ if __name__ == "__main__":
     # text_source_sim()
     # memory_source_sim()
     # memoryless_source_sim()
-    compression_sim()
+    # compression_sim()
+    memory_typical_set_sim()
     pass
     
