@@ -480,7 +480,7 @@ class MemorySource:
         self.state_cmf = np.zeros(self.n_states)
         state_cmf = 0
         for i in range(self.n_states):
-            cmf += self.state_pmf[i]
+            state_cmf += self.state_pmf[i]
             self.state_cmf[i] = state_cmf
         self.state_cmf /= state_cmf
         
