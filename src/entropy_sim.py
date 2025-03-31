@@ -155,8 +155,8 @@ def fast_entropy(pmf: np.ndarray, n_base_simbols: int, n_extension: int, base: i
             simbol_index = var_index // (n_base_simbols**j)
             probability *= pmf[simbol_index]
             var_index -= simbol_index*(n_base_simbols**j)
-        # extension_pmf[i] = probability
-        entropy_value += -np.log2(probability)*probability
+        # extension_pmf[i] = probability if probability else 0
+        entropy_value += -np.log2(probability)*probability if probability else 0
     # return np.sum(-np.log2(extension_pmf)*extension_pmf)
     
     return entropy_value/np.log2(base)
@@ -218,7 +218,8 @@ class Source:
             self.cmf[i] = cmf
         self.cmf /= cmf
         
-        self.base_entropy = np.sum(-np.log2(self.pmf)*self.pmf)
+        masked_pmf = np.ma.masked_values(self.pmf, 0)
+        self.base_entropy = np.sum(-np.ma.log2(masked_pmf)*masked_pmf)
                         
     def index_to_simbol(self, index: int) -> str:
         var_index = index
@@ -448,7 +449,7 @@ class MemorySource:
         self.memory_extension_ratio = int(np.ceil(self.memory/self.n_extension))
 
         distributions = [{self.alphabet[i]: self.pmf[j, i] for i in range(self.n_base_simbols)} for j in range(self.n_states)]
-        self.conditional_sources = [Source(dist) for dist in distributions]
+        self.conditional_sources = [Source(dist, self.n_extension) for dist in distributions]
         
         self.pmf = np.zeros(self.pmf.shape)
         self.cmf = np.zeros(self.pmf.shape)
@@ -459,8 +460,6 @@ class MemorySource:
                 cmf += self.pmf[i, j]
                 self.cmf[i, j] = cmf
             self.cmf[i, :] /= cmf
-
-        # self.base_entropy = fast_entropy_memory(n = 1)
         
         self.state_pmf = np.zeros(self.n_states)
         self.state_source = Source(distributions[0], self.memory)
@@ -539,10 +538,9 @@ class MemorySource:
                 return fast_probability_memory(self.pmf, self.state_pmf, initial_state_index, np.array(simbols_indexes), self.n_base_simbols, self.n_extension, self.memory)
         
     def entropy(self, base: int = 2) -> float:
-        # TODO: reemplazar por el cálculo de prob condicional cuando lo incluya
         entropy = 0
-        for probability, source in zip(self.state_pmf, self.conditional_sources):
-            entropy += probability*source.entropy(base)
+        for state_probability, conditional_source in zip(self.state_pmf, self.conditional_sources):
+            entropy += state_probability*conditional_source.entropy(base)
             
         return entropy
     
