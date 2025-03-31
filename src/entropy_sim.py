@@ -586,7 +586,7 @@ class MemorySource:
             for i in range((n_lines - (max_print//2))//self.n_states, n_lines//self.n_states):
                 for j in range(self.n_states):
                     simbol = self.index_to_simbol(i)
-                    state = self.index_to_state(i)
+                    state = self.index_to_state(j)
                     print_output += "\n"
                     print_output += simbol
                     print_output += "|"
