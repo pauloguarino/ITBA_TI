@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from numba import njit, float32, float64, int32, int64
 import numpy as np
+import pathlib
 
 class OldSource:
     base_source: OldSource
@@ -96,7 +97,6 @@ class OldSource:
     
     def __len__(self) -> int:
         return len(self.dist)
-
 
 @njit(
     [float32(float32[:], int64[:], int32, int32), float64(float64[:], int64[:], int32, int32)],
@@ -555,6 +555,9 @@ class MemorySource:
         typical_set_indexes = fast_typical_set_memory(self.pmf, self.state_pmf, self.base_entropy, epsilon, self.n_base_simbols, self.n_extension, self.memory)
 
         return {self.index_to_simbol(index) for index in typical_set_indexes}
+    
+    def from_input(cls, input: str | pathlib.Path, encoding: str = None) -> Source:
+        raise NotImplementedError
     
     def __repr__(self) -> str:
         print_output = "Simbol\t"
