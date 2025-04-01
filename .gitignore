@@ -175,3 +175,4 @@ media/
 
 # Output
 outputs/
+src/tests.py
