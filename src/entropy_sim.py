@@ -208,7 +208,7 @@ def compression_sim():
     pmf = np.array([0.1, 0.9])
     # memory_pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.8, 0.2], [0.99, 0.01]])
     memory_pmf = np.array([[0.75, 0.25], [0.95, 0.05], [0, 1], [0.5, 0.5]])
-    output_size = 8000*2**10
+    output_bytes = 8000*2**10
     fixed_bits_per_byte = 3
     
     source = information.Source((alphabet, pmf), 8)
@@ -218,9 +218,11 @@ def compression_sim():
     memory_source_entropy_per_simbol = memory_source.entropy_per_simbol
     memoryless_source_entropy_per_simbol = memoryless_source.entropy_per_simbol
     
-    print(f"Entropía por símbolo de la fuente: {source_entropy_per_simbol:.3g} bits")
-    print(f"Entropía por símbolo de la fuente con memoria: {memory_source_entropy_per_simbol:.3g} bits")
-    print(f"Entropía por símbolo de la fuente afín: {memoryless_source_entropy_per_simbol:.3g} bits")
+    print(memory_source)
+    
+    print(f"Entropía de la fuente: {source_entropy_per_simbol:.3g} bits")
+    print(f"Entropía de la fuente con memoria: {memory_source_entropy_per_simbol:.3g} bits")
+    print(f"Entropía de la fuente afín: {memoryless_source_entropy_per_simbol:.3g} bits")
     
     current_dir_path = Path.cwd()
     output_dir_path = current_dir_path.joinpath("outputs")
@@ -230,37 +232,45 @@ def compression_sim():
     random_output_path = output_dir_path.joinpath("entropy_compression_sim_random_output")
     semirandom_output_path = output_dir_path.joinpath("entropy_compression_sim_semirandom_output")
     
-    expected_source_output_compressed_size = output_size*source_entropy_per_simbol
-    expected_memory_source_output_compressed_size = output_size*memory_source_entropy_per_simbol
-    expected_memoryless_source_output_compressed_size = output_size*memoryless_source_entropy_per_simbol
+    expected_source_output_compressed_size = output_bytes*source_entropy_per_simbol
+    expected_memory_source_output_compressed_size = output_bytes*memory_source_entropy_per_simbol
+    expected_memoryless_source_output_compressed_size = output_bytes*memoryless_source_entropy_per_simbol
     mask = 2**(8 - fixed_bits_per_byte) - 1
-    expected_semirandom_output_compressed_size = output_size*(8 - fixed_bits_per_byte)/8
+    expected_semirandom_output_compressed_size = output_bytes*(8 - fixed_bits_per_byte)/8
 
-    print(f"Tamaño de los archivos de salida: {output_size/1024:.0f} Kb")
+    print(f"Tamaño de los archivos de salida: {output_bytes/1024:.0f} Kb")
     print(f"Tamaño esperado del archivo generado por la fuente comprimido: {expected_source_output_compressed_size/1024:.0f} Kb")
     print(f"Tamaño esperado del archivo generado por la fuente con memoria comprimido: {expected_memory_source_output_compressed_size/1024:.0f} Kb")
     print(f"Tamaño esperado del archivo generado por la fuente afín comprimido: {expected_memoryless_source_output_compressed_size/1024:.0f} Kb")
     print(f"Tamaño esperado del archivo semialeatorio comprimido: {expected_semirandom_output_compressed_size/1024:.0f} Kb")
     
-    # with open(source_output_path, "bw") as file:
-    #     for _ in tqdm(range(output_size)):
-    #         file.write(bytes([source.simbol_to_index(source())]))
+    with open(source_output_path, "bw") as file:
+        for _ in tqdm(range(output_bytes)):
+            byte_simbol_index = 0
+            for i in range(8):
+                byte_simbol_index += source.simbol_to_index(source())*(2**i)
+            file.write(bytes([byte_simbol_index]))
 
-    # me da demasiado pesado este, puede ser porque codifica de a bytes, tendría que tener memoria de más de 1 byte (múltiples bytes)
     with open(memory_source_output_path, "bw") as file:
-        for _ in tqdm(range(output_size)):
-            file.write(bytes([memory_source.simbol_to_index(memory_source())]))
+        for _ in tqdm(range(output_bytes)):
+            byte_simbol_index = 0
+            for i in range(8):
+                byte_simbol_index += memory_source.simbol_to_index(memory_source())*(2**i)
+            file.write(bytes([byte_simbol_index]))
 
     with open(memoryless_source_output_path, "bw") as file:
-        for _ in tqdm(range(output_size)):
-            file.write(bytes([memoryless_source.simbol_to_index(memoryless_source())]))       
+        for _ in tqdm(range(output_bytes)):
+            byte_simbol_index = 0
+            for i in range(8):
+                byte_simbol_index += memoryless_source.simbol_to_index(memoryless_source())*(2**i)
+            file.write(bytes([byte_simbol_index]))  
     
-    # with open(random_output_path, "bw") as random_file:
-    #     with open(semirandom_output_path, "bw") as semirandom_file:
-    #         for _ in tqdm(range(output_size)):
-    #             byte = np.random.randint(256)
-    #             random_file.write(bytes([byte]))
-    #             semirandom_file.write(bytes([byte & mask]))
+    with open(random_output_path, "bw") as random_file:
+        with open(semirandom_output_path, "bw") as semirandom_file:
+            for _ in tqdm(range(output_bytes)):
+                byte = np.random.randint(256)
+                random_file.write(bytes([byte]))
+                semirandom_file.write(bytes([byte & mask]))
 
 def memory_typical_set_sim():
     alphabet = ["0", "1"]
@@ -311,6 +321,111 @@ def memory_typical_set_sim():
     plt.plot(range(1, n_extension_max + 1), [theoretical_typical_sets_probabilities_limit for i in range(n_extension_max)])
     plt.show()
 
+def entropy_rate_sim():
+    alphabet = ["0", "1"]
+    pmf = np.array([0.1, 0.9])
+    memory_pmf = np.array([[0.1, 0.9], [0.3, 0.7], [0.8, 0.2], [0.4, 0.6]])
+    # memory_pmf = np.array([[0.75, 0.25], [0.95, 0.05], [0, 1], [0.5, 0.5]])
+    output_size = 8000*2**10
+    
+    source = information.Source((alphabet, pmf))
+    memory_source = information.MemorySource((alphabet, memory_pmf))
+    memoryless_source = memory_source.unconditional_source()
+
+    current_dir_path = Path.cwd()
+    input_dir_path = current_dir_path.joinpath("outputs")
+    source_input_path = input_dir_path.joinpath("entropy_compression_sim_source_output")
+    memory_source_input_path = input_dir_path.joinpath("entropy_compression_sim_memory_source_output")
+    memoryless_source_input_path = input_dir_path.joinpath("entropy_compression_sim_memoryless_source_output")
+
+    estimated_pmf = np.zeros(pmf.shape)
+    n_bits = 0
+    with open(source_input_path, "br") as source_input_file:
+        for _ in tqdm(range(output_size)):
+            byte = source_input_file.read(1)
+            byte_string = f"{int.from_bytes(byte):08b}"
+            for bit in byte_string:
+                simbol_index = 0 if bit == "0" else 1
+                estimated_pmf[simbol_index] += 1
+                n_bits += 1
+                
+        estimated_pmf /= n_bits
+        estimated_source = information.Source((alphabet, estimated_pmf))
+        estimated_entropy = estimated_source.entropy()
+        print("Fuente sin memoria")
+        print(source)
+        print(f"Entropía de la fuente: {source.entropy():.3g} bits")
+        print("Estimación")
+        print(estimated_source)
+        print(f"Entropía estimada de la fuente: {estimated_entropy:.3g}")
+
+    estimated_pmf = np.zeros(memory_pmf.shape)
+    n_bits = 0
+    current_state = ""
+    with open(memory_source_input_path, "br") as memory_source_input_file:
+        for _ in tqdm(range(output_size)):
+            byte = memory_source_input_file.read(1)
+            byte_string = f"{int.from_bytes(byte):08b}"
+            for bit in byte_string:
+                if len(current_state) < memory_source.memory:
+                    current_state += bit
+                else:
+                    state_index = memory_source.state_to_index(current_state)
+                    simbol_index = 0 if bit == "0" else 1
+                    estimated_pmf[state_index, simbol_index] += 1
+                    n_bits += 1
+                    current_state += bit
+                    current_state = current_state[-memory_source.memory:]
+                
+        estimated_pmf /= n_bits
+        estimated_source = information.MemorySource((alphabet, estimated_pmf))
+        estimated_entropy = estimated_source.entropy()
+        print("Fuente con memoria")
+        print(memory_source)
+        print(f"Entropía de la fuente con memoria: {memory_source.entropy():.3g} bits")
+        print("Fuente estimada")
+        print(estimated_source)
+        print(f"Entropía estimada de la fuente con memoria: {estimated_entropy:.3g}")
+
+    estimated_pmf = np.zeros(pmf.shape)
+    n_bits = 0
+    with open(memory_source_input_path, "br") as memory_source_input_file:
+        for _ in tqdm(range(output_size)):
+            byte = memory_source_input_file.read(1)
+            byte_string = f"{int.from_bytes(byte):08b}"
+            for bit in byte_string:
+                simbol_index = 0 if bit == "0" else 1
+                estimated_pmf[simbol_index] += 1
+                n_bits += 1
+                
+        estimated_pmf /= n_bits
+        estimated_source = information.Source((alphabet, estimated_pmf))
+        estimated_entropy = estimated_source.entropy()
+        print("Fuente con memoria estimada como si no tuviese memoria")
+        print(estimated_source)
+        print(f"Entropía estimada de la fuente: {estimated_entropy:.3g}")
+
+    estimated_pmf = np.zeros(pmf.shape)
+    n_bits = 0
+    with open(memoryless_source_input_path, "br") as memoryless_source_input_file:
+        for _ in tqdm(range(output_size)):
+            byte = memoryless_source_input_file.read(1)
+            byte_string = f"{int.from_bytes(byte):08b}"
+            for bit in byte_string:
+                simbol_index = 0 if bit == "0" else 1
+                estimated_pmf[simbol_index] += 1
+                n_bits += 1
+                
+        estimated_pmf /= n_bits
+        estimated_source = information.Source((alphabet, estimated_pmf))
+        estimated_entropy = estimated_source.entropy()
+        print("Fuente afín")
+        print(memoryless_source)
+        print(f"Entropía de la fuente afín: {memoryless_source.entropy():.3g} bits")
+        print("Fuente estimada")
+        print(estimated_source)
+        print(f"Entropía estimada de la fuente afín: {estimated_entropy:.3g}")
+
 if __name__ == "__main__":
     # entropy_sim()
     # typical_set_sim()
@@ -319,6 +434,7 @@ if __name__ == "__main__":
     # memory_source_sim()
     # memoryless_source_sim()
     # compression_sim()
-    memory_typical_set_sim()
+    # memory_typical_set_sim()
+    entropy_rate_sim()
     pass
     
