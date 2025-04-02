@@ -1,0 +1,96 @@
+distorsión
+    clases
+    demostraciones
+        amplitud
+        fase
+        alineal
+            fuentes
+                saturación
+                histéresis
+                backlash
+                slew rate
+            consecuencias
+                armónica
+                intermodulación
+        gráficos
+            señal en el tiempo
+            señal en frecuencia
+            vin vs vout animado
+            transferencia para distorsión lineal
+        ejemplos
+            audio
+            imágenes
+    mejoras de código
+    comentarios
+fuentes
+    clases
+        fuentes estadísticas
+            en base a binario
+            en base a input texto con distintas codificaciones
+            hay fuentes que no vamos a poder estimar
+        mezcla
+            entropía conjunta
+            entropía condicional
+            entropía relativa
+            información mutua
+    demostraciones
+        compression sim
+            extensiones no daba bien
+        gráfico continuo que muestre los símbolos siendo transmitidos y vaya calculando la entropía estadística
+    mejoras de código
+        fast state pmf
+        hacer la entropy_rate_sim sin tanta iteración, guardando todo en memoria
+        lista típica reemplazar list de alguna manera o paralelizar el proceso
+        entropía paralelizar el proceso sin ocupar mucha memoria
+        anotar valores para los cuales no explota todo
+        validación de inputs
+            qué pasa si la distribución no es irreducible o aperiódica
+        pensar si no conviene restringir más el tamaño y guardar todos o algunos de los arrays
+        combinar ambas clases en una
+            condición para que no sea recursivo
+        agregar time como decorador
+    comentarios
+        todo
+codificación de fuente
+    clases
+        función de codificación o clase hija que al imprimir o call codifique los símbolos
+        codificaciones clásicas en base a las probabilidades
+        codificación por conjunto típico
+    demostraciones
+        relaciones entre entropía y el largo promedio del código
+        gráfico continuo que muestre el código siendo transmitido y vaya calculando la velocidad de transmisión de la fuente vs la del código que es constante
+    mejoras de código
+    comentarios
+codificación de canal
+    clases
+    demostraciones
+        confirmar teoría
+    mejoras de código
+    comentarios
+digitalización
+    clases
+    demostraciones
+        confirmar teoría
+        recibir audio en tiempo real
+        graficar en tiempo real
+        transformada de fourier
+        submuestrear
+        mostrar la señal submuestreada y su transformada
+        mostrar la señal cuantizada y su transformada
+        explicar todo
+            cómo afecta la cuantización en tiempo
+            cómo afecta la cuantización en frecuencia
+        parámetros
+            frecuencia de subsampleo
+            número de bits
+        dudas
+            cómo escalaba la fft
+    mejoras de código
+        probar aumentar los puntos de la fft
+    comentarios
+modulación
+    clases
+    demostraciones
+        confirmar teoría
+    mejoras de código
+    comentarios
