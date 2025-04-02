@@ -65,6 +65,8 @@ codificación de canal
     clases
     demostraciones
         confirmar teoría
+        cómo traduzco ruido y ancho de banda en la matriz del canal
+        cómo traduzco velocidad de transmisión en la capacidad
     mejoras de código
     comentarios
 digitalización
