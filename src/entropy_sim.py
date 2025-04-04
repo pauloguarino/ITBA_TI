@@ -5,6 +5,17 @@ from tqdm import tqdm
 
 from ti_modules import information
 
+def random_variable_sim():
+    values = np.array([0, 1])
+    pmf = np.array([0.75, 0.25])
+
+    x = information.RandomVariable((values, pmf))
+    y = x + 2
+    print(y - 3)
+    print(2 + x)
+    
+    print([value for value, probability in y])
+
 def entropy_sim():
     dist = {
         "A": 0.1,
@@ -427,6 +438,7 @@ def entropy_rate_sim():
         print(f"Entropía estimada de la fuente afín: {estimated_entropy:.3g}")
 
 if __name__ == "__main__":
+    random_variable_sim()
     # entropy_sim()
     # typical_set_sim()
     # multicharacter_simbols_sim()
@@ -435,6 +447,6 @@ if __name__ == "__main__":
     # memoryless_source_sim()
     # compression_sim()
     # memory_typical_set_sim()
-    entropy_rate_sim()
+    # entropy_rate_sim()
     pass
     

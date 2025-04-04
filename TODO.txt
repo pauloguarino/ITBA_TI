@@ -28,7 +28,14 @@ fuentes
             en base a binario
             en base a input texto con distintas codificaciones
             hay fuentes que no vamos a poder estimar
+            leer capítulo 6
         mezcla
+            va
+                si los values no son únicos sumar la pmf
+                conjunta
+                condicional
+                si sirve agregarla a source o hacerla clase madre
+                    como values pasar todos los enteros de 0 a n_simbols
             entropía conjunta
             entropía condicional
             entropía relativa
@@ -39,6 +46,8 @@ fuentes
         gráfico continuo que muestre los símbolos siendo transmitidos y vaya calculando la entropía estadística
     mejoras de código
         fast state pmf
+        por ahora no sé si está bien definida la fuente con memoria si se definen fuentes multicaracter que no sean extensiones
+            por ejemplo si intento definir una fuente con memoria a partir de la fuente afín a una fuente extendida
         hacer la entropy_rate_sim sin tanta iteración, guardando todo en memoria
         lista típica reemplazar list de alguna manera o paralelizar el proceso
         entropía paralelizar el proceso sin ocupar mucha memoria
@@ -67,6 +76,7 @@ codificación de canal
         confirmar teoría
         cómo traduzco ruido y ancho de banda en la matriz del canal
         cómo traduzco velocidad de transmisión en la capacidad
+        gráfico v mensaje vs e transmisión con límite en la capacidad
     mejoras de código
     comentarios
 digitalización
