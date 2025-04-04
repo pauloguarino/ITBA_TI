@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from numba import njit, float32, float64, int32, int64
 import numpy as np
 import pathlib
@@ -98,6 +98,156 @@ class OldSource:
     def __len__(self) -> int:
         return len(self.dist)
 
+class RandomVariable:
+    values: np.ndarray
+    pmf: np.ndarray
+    
+    cmf: np.ndarray
+    
+    def __init__(self, dist: tuple[Iterable[float], Iterable[float]] | RandomVariable | float):
+        if isinstance(dist, tuple):
+            self.values = np.array([probability for probability in dist[0]])
+            self.pmf = np.array([probability for probability in dist[1]])
+            pmf_norm = self.pmf.sum()
+            self.pmf /= pmf_norm
+        elif isinstance(dist, RandomVariable):
+            self.values = dist.values.copy()
+            self.pmf = dist.pmf.copy()
+        else:
+            try:
+                dist = float(dist)
+            except (TypeError, ValueError) as e:
+                raise e(f"{dist} is not valid type for {type(self).__name__} creation")
+            else:
+                self.values = np.array([dist])
+                self.pmf = np.array([1])
+            
+        assert len(self.values) == len(np.unique(self.values))
+        assert all(self.pmf >= 0)
+        
+        self.cmf = np.zeros(len(self.pmf))
+        cmf = 0
+        for i in range(len(self.pmf)):
+            cmf += self.pmf[i]
+            self.cmf[i] = cmf
+        self.cmf /= cmf
+    
+    def __neg__(self) -> RandomVariable:
+        return RandomVariable((-self.values, self.pmf))
+            
+    def __add__(self, va: RandomVariable | float) -> RandomVariable:
+        if isinstance(va, RandomVariable):
+            pass
+        else:
+            try:
+                va = float(va)
+            except (TypeError, ValueError) as e:
+                raise e(f"Value added is not a {type(self)} object nor is convertable to float")
+            return RandomVariable((self.values + va, self.pmf))
+    
+    def __radd__(self, va: RandomVariable | float) -> RandomVariable:
+        return self + va
+        
+    def __sub__(self, va: RandomVariable | float) -> RandomVariable:
+        return self + -va
+    
+    def __rsub__(self, va: RandomVariable | float) -> RandomVariable:
+        return -(self - va)
+    
+    def __mul__(self, va: RandomVariable | float) -> RandomVariable:
+        if isinstance(va, RandomVariable):
+            pass
+        else:
+            try:
+                va = float(va)
+            except (TypeError, ValueError) as e:
+                raise e(f"Value multiplied is not a {type(self)} object nor is convertable to float")
+            return RandomVariable((self.values*va, self.pmf))
+    
+    def __rmul__(self, va: RandomVariable | float) -> RandomVariable:
+        return self*va
+    
+    def __truediv__(self, va: RandomVariable | float) -> RandomVariable:
+        return self*(1/va)
+        
+    def __rtruediv__(self, va: RandomVariable | float) -> RandomVariable:
+        if va == 1:
+            return RandomVariable((1/self.values, self.pmf))
+        else:
+            return va*(1/self)
+    
+    def __pow__(self, va: RandomVariable | float) -> RandomVariable:
+        if isinstance(va, RandomVariable):
+            pass
+        else:
+            try:
+                va = float(va)
+            except (TypeError, ValueError) as e:
+                raise e(f"Value in power is not a {type(self)} object nor is convertable to float")
+            return RandomVariable((self.values**va, self.pmf))
+
+    def __rpow__(self, va: RandomVariable | float) -> RandomVariable:
+        if isinstance(va, RandomVariable):
+            pass
+        else:
+            try:
+                va = float(va)
+            except (TypeError, ValueError) as e:
+                raise e(f"Value in power is not a {type(self)} object nor is convertable to float")
+            return RandomVariable((va**self.values, self.pmf))
+    
+    def log(self, base: float = 2) -> RandomVariable:
+        return RandomVariable((np.emath.logn(base, self.values), self.pmf))
+
+    def __eq__(self, va: RandomVariable) -> bool:
+        va_eq = va if isinstance(va, RandomVariable) else RandomVariable(va)
+        return all(self.values == va_eq.values) and all(self.pmf == va_eq.pmf)
+    
+    def __len__(self) -> int:
+        return len(self.values)
+
+    def __format__(self, format_spec) -> str:
+        pass
+    
+    def __iter__(self) -> Iterator:
+        return iter(zip(self.values, self.pmf))
+    
+    def __containts__(self, value: float) -> bool:
+        return value in self.values
+
+    def __call__(self) -> float:
+        shifted_cmf = self.cmf - np.random.random()
+        positive_shifted_cmf = np.where(shifted_cmf < 0, np.inf, shifted_cmf)
+        output = self.values[np.argmin(positive_shifted_cmf)]
+            
+        return output
+
+    def __repr__(self) -> str:
+        print_output = "Value\t"
+        print_output += "Probability"
+        n_lines = len(self)
+        max_print = 40
+        if n_lines < max_print:
+            for i in range(n_lines):
+                print_output += "\n"
+                print_output += f"{self.values[i]:.3g}"
+                print_output += "\t"
+                print_output += f"{self.pmf[i]:.3g}"
+        else:
+            for i in range(max_print//2):
+                print_output += "\n"
+                print_output += f"{self.values[i]:.3g}"
+                print_output += "\t"
+                print_output += f"{self.pmf[i]:.3g}"
+            print_output += "\n ------------"
+            for i in range(n_lines - max_print//2, n_lines):
+                print_output += "\n"
+                print_output += f"{self.values[i]:.3g}"
+                print_output += "\t"
+                print_output += f"{self.pmf[i]:.3g}"
+        
+        return print_output
+        
 @njit(
     [float32(float32[:], int64[:], int32, int32), float64(float64[:], int64[:], int32, int32)],
     parallel=True,
