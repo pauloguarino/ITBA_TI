@@ -201,8 +201,9 @@ class RandomVariable:
                 raise e(f"Value in power is not a {type(self)} object nor is convertable to float")
             return RandomVariable((va**self.values, self.pmf))
     
-    def log(self, base: float = 2) -> RandomVariable:
-        return RandomVariable((np.emath.logn(base, self.values), self.pmf))
+    @staticmethod
+    def log(rv: RandomVariable, base: float = 2) -> RandomVariable:
+        return RandomVariable((np.emath.logn(base, rv.values), rv.pmf))
 
     def __eq__(self, va: RandomVariable) -> bool:
         va_eq = va if isinstance(va, RandomVariable) else RandomVariable(va)
