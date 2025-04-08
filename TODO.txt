@@ -61,7 +61,6 @@ fuentes
             leer capítulo 6
         mezcla
             va
-                si los values no son únicos sumar la pmf
                 conjunta
                 condicional
                 si sirve agregarla a source o hacerla clase madre

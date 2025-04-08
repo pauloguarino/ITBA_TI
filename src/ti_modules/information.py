@@ -106,8 +106,13 @@ class RandomVariable:
     
     def __init__(self, dist: tuple[Iterable[float], Iterable[float]] | RandomVariable | float):
         if isinstance(dist, tuple):
-            self.values = np.array([probability for probability in dist[0]])
-            self.pmf = np.array([probability for probability in dist[1]])
+            dist_dict = dict()
+            for value in dist[0]:
+                dist_dict[value] = 0
+            for value, probability in zip(dist[0], dist[1]):
+                dist_dict[value] += probability
+            self.values = np.array([value for value in dist_dict.keys()])
+            self.pmf = np.array([probability for probability in dist_dict.values()])
             pmf_norm = self.pmf.sum()
             self.pmf /= pmf_norm
         elif isinstance(dist, RandomVariable):
