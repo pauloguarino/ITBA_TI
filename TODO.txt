@@ -31,7 +31,6 @@ fuentes
             leer capítulo 6
         mezcla
             va
-                si los values no son únicos sumar la pmf
                 conjunta
                 condicional
                 si sirve agregarla a source o hacerla clase madre
@@ -58,6 +57,7 @@ fuentes
         combinar ambas clases en una
             condición para que no sea recursivo
         agregar time como decorador
+        si llega a ser lento el pasaje por diccionario de las va, sacarlo, e incorporar el chequeo en el cálculo de probabilidad
     comentarios
         todo
 codificación de fuente

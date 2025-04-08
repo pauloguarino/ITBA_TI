@@ -6,15 +6,18 @@ from tqdm import tqdm
 from ti_modules import information
 
 def random_variable_sim():
-    values = np.array([0, 1])
-    pmf = np.array([0.75, 0.25])
+    values = np.array([-1, 0, 1])
+    pmf = np.array([0.75, 0.125, 0.125])
 
     x = information.RandomVariable((values, pmf))
     y = x + 2
     print(y - 3)
     print(2 + x)
+    z = x**2
     
-    print([value for value, probability in y])
+    print(x)
+    print(z)
+
 
 def entropy_sim():
     dist = {
