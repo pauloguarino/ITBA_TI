@@ -22,8 +22,38 @@ distorsión
             imágenes
     mejoras de código
     comentarios
+probabilidad
+    clases
+        pmf matricial
+        values es el soporte
+        pmf method para acceder en base al soporte
+            valores
+            slices
+        pdf/pmf fórmula
+            quizás necesite hacer classmethods para las operaciones que componen las fórmulas
+            funciones con igual números de argumentos que dimensión
+            cdf/cmf
+        momentos
+        operaciones
+            log para rv
+            función arbitraria como p(x, y)
+                chequear que cumpla ciertos requisitos en typing quizás
+                puedo implementarlo con dicts
+        conjunta
+            lista de indexes
+            no tiene nada que ver con operaciones entre variables, estas son o no independientes por definición
+            variables no independientes
+            probabilidades marginales
+            puedo chequear que sean independientes a partir del cálculo de las marginales
+            momentos en base a una de las variables de la conjunta
+        condicional
+    demostraciones
+        ejercicios de probabilidad
+procesos estocásticos
 fuentes
     clases
+        si sirve random variable agregarla a source o hacerla clase madre
+            como values pasar todos los enteros de 0 a n_simbols
         fuentes estadísticas
             en base a binario
             en base a input texto con distintas codificaciones
@@ -33,6 +63,10 @@ fuentes
             entropía condicional
             entropía relativa
             información mutua
+    mejoras de código
+        pasarlo a un módulo aparte
+    comentarios
+        todo
     demostraciones
         compression sim
             extensiones no daba bien
@@ -49,6 +83,8 @@ fuentes
         combinar ambas clases en una
             condición para que no sea recursivo
         agregar time como decorador
+        si llega a ser lento el pasaje por diccionario de las va, sacarlo, e incorporar el chequeo en el cálculo de probabilidad
+        cambiar el tipo de error en el init de rv
     comentarios
         todo
 codificación de fuente
@@ -76,6 +112,8 @@ digitalización
         recibir audio en tiempo real
         graficar en tiempo real
         transformada de fourier
+            ventanear
+        espectrograma
         submuestrear
         mostrar la señal submuestreada y su transformada
         mostrar la señal cuantizada y su transformada
