@@ -99,35 +99,69 @@ class OldSource:
         return len(self.dist)
 
 class RandomVariable:
-    values: np.ndarray
+    values: tuple[np.ndarray]
     pmf: np.ndarray
+    dimension: int
     
     cmf: np.ndarray
     
-    def __init__(self, dist: tuple[Iterable[float], Iterable[float]] | RandomVariable | float):
-        if isinstance(dist, tuple):
+    def __init__(self, *, random_variable: RandomVariable | float = None, pmf: np.ndarray = None, values: tuple[Iterable[float]] | Iterable[float] = None):
+        if random_variable is not None:
+            if isinstance(random_variable, RandomVariable):
+                self.values = tuple((value.copy() for value in random_variable.values))
+                self.pmf = random_variable.pmf.copy()
+                self.dimension = random_variable.dimension
+            else:
+                try:
+                    random_variable = float(random_variable)
+                except (TypeError, ValueError) as e:
+                    raise e(f"{type(random_variable)} is not valid type for {type(self).__name__} creation")
+                else:
+                    self.values = (np.array([random_variable]), )
+                    self.pmf = np.array([1])
+                    self.dimension = 1
+        elif pmf is not None:
+            self.dimension = len(pmf.shape)
+            # Si solo recibe una pmf, le asigna valores enteros desde 0 en adelante
+            if values is None:
+                self.values = tuple((np.array([j for j in range(pmf.shape[i])]) for i in range(self.dimension)))
+            else:
+                if any((isinstance(value, Iterable) for value in values)):
+                    assert self.dimension == len(values)
+                    self.values = tuple((np.array(value if isinstance(value, Iterable) else [value]) for value in values))
+                    assert all((len(self.values[i]) == pmf.shape[i] for i in range(self.dimension)))
+                else:
+                    assert self.dimension == 1
+                    self.values = np.array(values if isinstance(values, Iterable) else [values])
+                    assert len(self.values) == len(pmf)
+            if self.dimension == 1:
+                values_tuple_list = [(value, ) for value in values]
+                values_tuple_index_list = [(i, ) for i in range(len(values))]
+            else:
+                values_tuple_list = [(value, ) for value in values[0]]
+                values_tuple_index_list = [(i, ) for i in range(len(values[0]))]
+                for i in range(1, len(values)):
+                    aux_values_tuple_list = values_tuple_list
+                    aux_values_tuple_index_list = values_tuple_index_list
+                    values_tuple_list = []
+                    values_tuple_index_list = []
+                    for j in range(len(values[i])):
+                        for k in range(len(aux_values_tuple_list)):
+                            values_tuple_list.append((*aux_values_tuple_list[k], values[i][j]))
+                            values_tuple_index_list.append((*aux_values_tuple_index_list[k], j))
             dist_dict = dict()
-            for value in dist[0]:
-                dist_dict[value] = 0
-            for value, probability in zip(dist[0], dist[1]):
-                dist_dict[value] += probability
+            for value_tuple in values_tuple_list:
+                dist_dict[value_tuple] = 0
+            for value_tuple, value_tuple_index in zip(values_tuple_list, values_tuple_index_list):
+                dist_dict[value_tuple] += pmf[*value_tuple_index]
+            # TODO: values and pmf reduction, pmf normalization, cmf
             self.values = np.array([value for value in dist_dict.keys()])
             self.pmf = np.array([probability for probability in dist_dict.values()])
             pmf_norm = self.pmf.sum()
             self.pmf /= pmf_norm
-        elif isinstance(dist, RandomVariable):
-            self.values = dist.values.copy()
-            self.pmf = dist.pmf.copy()
         else:
-            try:
-                dist = float(dist)
-            except (TypeError, ValueError) as e:
-                raise e(f"{dist} is not valid type for {type(self).__name__} creation")
-            else:
-                self.values = np.array([dist])
-                self.pmf = np.array([1])
+            raise TypeError("Missing 1 of 2 required keyword-only argument: 'random_variable' or 'pmf'")
             
-        assert len(self.values) == len(np.unique(self.values))
         assert all(self.pmf >= 0)
         
         self.cmf = np.zeros(len(self.pmf))
@@ -253,7 +287,40 @@ class RandomVariable:
                 print_output += f"{self.pmf[i]:.3g}"
         
         return print_output
+
+class JointRandomVariable(RandomVariable):
+    values: tuple[np.ndarray]
+    pmf: np.ndarray
+    
+    cmf: np.ndarray
+    
+    def __init__(self, dist: tuple[tuple[Iterable[float]], Iterable[float]] | JointRandomVariable):
+        if isinstance(dist, tuple):
+            dist_dict = dict()
+            for value in dist[0]:
+                dist_dict[value] = 0
+            for value, probability in zip(dist[0], dist[1]):
+                dist_dict[value] += probability
+            self.values = np.array([value for value in dist_dict.keys()])
+            self.pmf = np.array([probability for probability in dist_dict.values()])
+            pmf_norm = self.pmf.sum()
+            self.pmf /= pmf_norm
+        elif isinstance(dist, RandomVariable):
+            self.values = dist.values.copy()
+            self.pmf = dist.pmf.copy()
+        else:
+            raise TypeError(f"{dist} is not valid type for {type(self).__name__} creation")
+            
+        assert len(self.values) == len(np.unique(self.values))
+        assert all(self.pmf >= 0)
         
+        self.cmf = np.zeros(len(self.pmf))
+        cmf = 0
+        for i in range(len(self.pmf)):
+            cmf += self.pmf[i]
+            self.cmf[i] = cmf
+        self.cmf /= cmf
+
 @njit(
     [float32(float32[:], int64[:], int32, int32), float64(float64[:], int64[:], int32, int32)],
     parallel=True,
