@@ -18,6 +18,16 @@ def random_variable_sim():
     print(x)
     print(z)
 
+def joint_random_variable_sim():
+    x_values = [-1, 0, 1]
+    x_pmf = np.array([0.75, 0.125, 0.125])
+
+    y_values = [5, 10]
+    y_pmf = np.array([0.2, 0.8])
+    
+    x = information.RandomVariable((x_values, x_pmf))
+    y = information.RandomVariable((y_values, y_pmf))
+    print(x + y)
 
 def entropy_sim():
     dist = {
@@ -441,7 +451,8 @@ def entropy_rate_sim():
         print(f"Entropía estimada de la fuente afín: {estimated_entropy:.3g}")
 
 if __name__ == "__main__":
-    random_variable_sim()
+    # random_variable_sim()
+    joint_random_variable_sim()
     # entropy_sim()
     # typical_set_sim()
     # multicharacter_simbols_sim()
