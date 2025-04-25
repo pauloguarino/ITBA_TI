@@ -129,8 +129,57 @@ digitalización
         probar aumentar los puntos de la fft
     comentarios
 modulación
-    clases
+    temas
+        analógicas
+            am
+            pm
+            fm
+            pam
+                multiplexación
+        digitales
+            modulaciones
+                pcm
+                ask
+                psk
+                fsk
+                qam
+                odfm
+            isi
+            probabilidad de error
+            regeneración
     demostraciones
-        confirmar teoría
+        input baja frecuencia
+            mostrar señal analógica o secuencia de símbolos en vivo
+            calcular los resultados esperados al modular en baja frecuencia
+                mantener la misma relación (o mayor) entre las freuencias modulantes y moduladas que en un sistema real donde la modulante es audio
+            mostrar las señales del sistema de modulación y demodulación en vivo
+                input analógico
+                    podría ser una melodía, tomando el pico de frecuencia de la señal de audio
+                    también una señal aleatoria en muy bajas freciencias
+                input digital
+                    secuencia de símbolos
+                        salida de una fuente
+                        digitalización de la señal analógica
+                    mostrar los símbolos en espacio de señales
+            agregar ruido donde corresponda
+            agregar canal
+                ideal
+                ruido
+                distorsión
+            comprobar
+                señales en el tiempo
+                señales en frecuencia
+                probabilidad de error
+            relacionar con la capacidad
+        input audio
+            modular y medir en frecuencia
+            agregar ruido donde corresponda
+            comprobar los espectros teóricos
+        canal real para señales acústicas
+    clases
+        graficar de a bloques vs graficar de a puntos
+            de a bloques puede ser como de a puntos pero cada punto es un bloque y el rango del eje lo expando por el largo del bloque
+        interfaz para seleccionar qué señal ver en un diagrama de bloques
+        pasar de pyqtgraph a animaciones interactivas
     mejoras de código
     comentarios
