@@ -427,14 +427,14 @@ def entropy_rate_sim():
         print(f"Entropía estimada de la fuente afín: {estimated_entropy:.3g}")
 
 if __name__ == "__main__":
-    # entropy_sim()
-    # typical_set_sim()
-    # multicharacter_simbols_sim()
-    # text_source_sim()
-    # memory_source_sim()
-    # memoryless_source_sim()
-    # compression_sim()
-    # memory_typical_set_sim()
+    entropy_sim()
+    typical_set_sim()
+    multicharacter_simbols_sim()
+    text_source_sim()
+    memory_source_sim()
+    memoryless_source_sim()
+    compression_sim()
+    memory_typical_set_sim()
     entropy_rate_sim()
     pass
     
