@@ -166,7 +166,7 @@ def memory_source_sim():
     
     print(f"Matriz de transición:\n{np.array2string(extended_memory_source.transition_matrix, precision=3, floatmode='fixed')}")
     print(f"Probabilidad de estados: {np.array2string(extended_memory_source.state_pmf, precision=3, floatmode='fixed')}")
-    print(f"Límite de la matriz de transición:\n{np.array2string(np.linalg.matrix_power(extended_memory_source.transition_matrix, 100), precision=3, floatmode='fixed')}")  # cada fila del límite de la matriz de transición es igual al vector de probabilidad de estados si 
+    print(f"Límite de la matriz de transición:\n{np.array2string(np.linalg.matrix_power(extended_memory_source.transition_matrix, 100), precision=3, floatmode='fixed')}")  # cada fila del límite de la matriz de transición (cuando se alcanza la distribución estacionaria) es igual al vector de probabilidad de estados si la cadena de Markov finita es irreducible (se puede llegar desde cualquier estado a cualquier otro en una cantidad finita de pasos y con probabilidad mayor a 0) y aperiódica
     
     print("Fuente afín de la extensión de la fuente con memoria")
     print(unconditional_extended_source)
