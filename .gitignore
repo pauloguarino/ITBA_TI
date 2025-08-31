@@ -174,5 +174,5 @@ cython_debug/
 media/
 
 # Output
-outputs/
+output/
 tests_script.py
