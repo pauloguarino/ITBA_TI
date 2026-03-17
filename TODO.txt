@@ -22,56 +22,29 @@ distorsión
             imágenes
     mejoras de código
     comentarios
-probabilidad
-    clases
-        pmf matricial
-        values es el soporte
-        pmf method para acceder en base al soporte
-            valores
-            slices
-        pdf/pmf fórmula
-            quizás necesite hacer classmethods para las operaciones que componen las fórmulas
-            funciones con igual números de argumentos que dimensión
-            cdf/cmf
-        momentos
-        operaciones
-            log para rv
-            función arbitraria como p(x, y)
-                chequear que cumpla ciertos requisitos en typing quizás
-                puedo implementarlo con dicts
-        conjunta
-            lista de indexes
-            no tiene nada que ver con operaciones entre variables, estas son o no independientes por definición
-            variables no independientes
-            probabilidades marginales
-            puedo chequear que sean independientes a partir del cálculo de las marginales
-            momentos en base a una de las variables de la conjunta
-        condicional
-    demostraciones
-        ejercicios de probabilidad
-procesos estocásticos
 fuentes
     clases
+        inicializar memorysource con diccionario
         si sirve random variable agregarla a source o hacerla clase madre
             como values pasar todos los enteros de 0 a n_simbols
         fuentes estadísticas
             en base a binario
             en base a input texto con distintas codificaciones
             hay fuentes que no vamos a poder estimar
+            con distinto orden de memoria y distintos algoritmos
         mezcla
             entropía conjunta
             entropía condicional
             entropía relativa
             información mutua
-    mejoras de código
-        pasarlo a un módulo aparte
-    comentarios
-        todo
     demostraciones
         compression sim
             extensiones no daba bien
+        mostrar cómo un archivo comprimido es estadísticamente indistinguible de ruido
         gráfico continuo que muestre los símbolos siendo transmitidos y vaya calculando la entropía estadística
     mejoras de código
+        pasarlo a notebook
+        condicionar las probabilidades a los símbolos extendidos
         fast state pmf
         hacer la entropy_rate_sim sin tanta iteración, guardando todo en memoria
         lista típica reemplazar list de alguna manera o paralelizar el proceso
@@ -86,12 +59,11 @@ fuentes
         si llega a ser lento el pasaje por diccionario de las va, sacarlo, e incorporar el chequeo en el cálculo de probabilidad
         cambiar el tipo de error en el init de rv
     comentarios
-        todo
 codificación de fuente
     clases
         función de codificación o clase hija que al imprimir o call codifique los símbolos
         codificaciones clásicas en base a las probabilidades
-        codificación por conjunto típico
+        lossless y lossy
     demostraciones
         relaciones entre entropía y el largo promedio del código
         gráfico continuo que muestre el código siendo transmitido y vaya calculando la velocidad de transmisión de la fuente vs la del código que es constante
@@ -103,6 +75,9 @@ codificación de canal
         confirmar teoría
         cómo traduzco ruido y ancho de banda en la matriz del canal
         cómo traduzco velocidad de transmisión en la capacidad
+        implementar codificaciones de canal
+        simulaciones de distribuciones de entrada y canales
+        mostrar cómo la capacidad teórica resulta en una p_err creciente/decresciente
     mejoras de código
     comentarios
 digitalización

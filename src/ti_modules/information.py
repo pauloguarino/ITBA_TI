@@ -10,7 +10,7 @@ class OldSource:
     dist: dict[str, float]
     symbols: list[str]
     pmf: np.ndarray
-    cmf: np.ndarray
+    cdf: np.ndarray
     entropy: float
     epsilon: float
     typical_set: set[str]
@@ -32,12 +32,12 @@ class OldSource:
         for symbol in self.dist.keys():
             self.dist[symbol] = self.dist[symbol]/pmf_norm
         
-        self.cmf = np.zeros(len(self.pmf))
-        cmf = 0
+        self.cdf = np.zeros(len(self.pmf))
+        cdf = 0
         for i in range(len(self.pmf)):
-            cmf += self.pmf[i]
-            self.cmf[i] = cmf
-        self.cmf /= cmf
+            cdf += self.pmf[i]
+            self.cdf[i] = cdf
+        self.cdf /= cdf
         
         self.entropy = np.sum(-np.log2(self.pmf)*self.pmf)
         
@@ -89,9 +89,9 @@ class OldSource:
     def __call__(self, n: int = 1) -> str:
         output = ""
         for i in range(n):
-            shifted_cmf = self.cmf - np.random.random()
-            positive_shifted_cmf = np.where(shifted_cmf < 0, np.inf, shifted_cmf)
-            output += self.symbols[np.argmin(positive_shifted_cmf)]
+            shifted_cdf = self.cdf - np.random.random()
+            positive_shifted_cdf = np.where(shifted_cdf < 0, np.inf, shifted_cdf)
+            output += self.symbols[np.argmin(positive_shifted_cdf)]
             
         return output
     
@@ -161,12 +161,10 @@ class Source:
     
     n_base_symbols: int
     n_symbols: int
-    symbol_length: int
     
-    cmf: np.ndarray
+    cdf: np.ndarray
     base_entropy: float
-    entropy_per_symbol: float
-        
+            
     def __init__(self, dist: dict[str, float] | tuple[Iterable[str], Iterable[float]] | Source, n_extension: int = 1):
         if isinstance(dist, dict):
             self.dist = {symbol: probability for symbol, probability in dist.items()}
@@ -179,22 +177,21 @@ class Source:
         
         self.n_base_symbols = len(self.alphabet)
         self.n_symbols = self.n_base_symbols**self.n_extension
-        self.symbol_length = len(self.alphabet[0])
+        assert all([len(symbol) == 1 for symbol in self.alphabet])
         
         self.pmf = np.array([float(probability) for probability in self.dist.values()])
         pmf_norm = self.pmf.sum()
         self.pmf /= pmf_norm
         
-        self.cmf = np.zeros(len(self.pmf))
-        cmf = 0
+        self.cdf = np.zeros(len(self.pmf))
+        cdf = 0
         for i in range(len(self.pmf)):
-            cmf += self.pmf[i]
-            self.cmf[i] = cmf
-        self.cmf /= cmf
+            cdf += self.pmf[i]
+            self.cdf[i] = cdf
+        self.cdf /= cdf
         
         masked_pmf = np.ma.masked_values(self.pmf, 0)
         self.base_entropy = np.sum(-np.ma.log2(masked_pmf)*masked_pmf)
-        self.entropy_per_symbol = self.base_entropy/self.symbol_length
                         
     def index_to_symbol(self, index: int) -> str:
         var_index = index
@@ -209,7 +206,7 @@ class Source:
         index = 0
         for i in range(self.n_extension):
             for j in range(self.n_base_symbols):
-                if symbol[i*self.symbol_length:(i + 1)*self.symbol_length] == self.alphabet[j]:
+                if symbol[i] == self.alphabet[j]:
                     index += j*(self.n_base_symbols**(self.n_extension - i - 1))
         return index
     
@@ -237,6 +234,12 @@ class Source:
     def entropy(self, base: int = 2) -> float:
         return fast_entropy(self.pmf, self.n_base_symbols, self.n_extension, base)
     
+    def typical_set_p_limits(self, epsilon: float = 0.1) -> tuple[float, float]:
+        return (2**(-self.n_extension*(self.base_entropy + epsilon)), 2**(-self.n_extension*(self.base_entropy - epsilon)))
+    
+    def typical_set_size_bound(self, epsilon: float = 0.1) -> int:
+        return int(np.floor(2**(self.n_extension*(self.base_entropy - np.log2(self.n_base_symbols) + epsilon))))
+    
     def typical_set(self, epsilon: float = 0.1) -> set[str]:
         typical_set_indexes = fast_typical_set(self.pmf, self.base_entropy, epsilon, self.n_base_symbols, self.n_extension)
 
@@ -245,7 +248,7 @@ class Source:
     def __repr__(self) -> str:
         print_output = "symbol\t"
         print_output_len = len(print_output) + 5
-        while print_output_len < self.symbol_length*self.n_extension + 1:
+        while print_output_len < self.n_extension + 1:
             print_output += "\t"
             print_output_len += 6
         print_output += "Probability"
@@ -279,9 +282,9 @@ class Source:
         output = ""
         for i in range(n_generated):
             for j in range(self.n_extension):
-                shifted_cmf = self.cmf - np.random.random()
-                positive_shifted_cmf = np.where(shifted_cmf < 0, np.inf, shifted_cmf)
-                output += self.alphabet[np.argmin(positive_shifted_cmf)]
+                shifted_cdf = self.cdf - np.random.random()
+                positive_shifted_cdf = np.where(shifted_cdf < 0, np.inf, shifted_cdf)
+                output += self.alphabet[np.argmin(positive_shifted_cdf)]
             
         return output
     
@@ -405,23 +408,21 @@ class MemorySource:
     
     n_base_symbols: int
     n_symbols: int
-    symbol_length: int
     
-    n_states: int
     memory: int
+    n_states: int
     
-    cmf: np.ndarray
-    conditional_sources: list[Source]
+    cdf: np.ndarray
     base_entropy: float
-    entropy_per_symbol: float
     
-    state_source: Source
-    transition_matrix: np.ndarray
+    conditional_sources: list[Source]
     state_pmf: np.ndarray
-    unconditional_simple_pmf: np.ndarray
-    state_cmf: np.ndarray
+    transition_matrix: np.ndarray
+    state_cdf: np.ndarray
 
-    current_state_index: int = UNKNOWN_STATE_INDEX
+    _state_source: Source
+    _unconditional_simple_pmf: np.ndarray
+    _current_state_index: int = UNKNOWN_STATE_INDEX
 
     def __init__(self, dist: tuple[Iterable[str], np.ndarray] | MemorySource, n_extension: int = 1):
         if isinstance(dist, tuple):
@@ -435,8 +436,7 @@ class MemorySource:
         
         self.n_base_symbols = len(self.alphabet)
         self.n_symbols = self.n_base_symbols**self.n_extension
-        self.symbol_length = len(self.alphabet[0])
-        assert all([len(symbol) == self.symbol_length for symbol in self.alphabet])
+        assert all([len(symbol) == 1 for symbol in self.alphabet])
         
         self.n_states = self.pmf.shape[0]
         self.memory = np.emath.logn(self.n_base_symbols, self.n_states)
@@ -448,38 +448,37 @@ class MemorySource:
         self.conditional_sources = [Source(dist, self.n_extension) for dist in distributions]
         
         self.pmf = np.zeros(self.pmf.shape)
-        self.cmf = np.zeros(self.pmf.shape)
+        self.cdf = np.zeros(self.pmf.shape)
         for i in range(self.n_states):
             self.pmf[i, :] = self.conditional_sources[i].pmf
-            cmf = 0
+            cdf = 0
             for j in range(self.n_base_symbols):
-                cmf += self.pmf[i, j]
-                self.cmf[i, j] = cmf
-            self.cmf[i, :] /= cmf
+                cdf += self.pmf[i, j]
+                self.cdf[i, j] = cdf
+            self.cdf[i, :] /= cdf
         
         self.state_pmf = np.zeros(self.n_states)
-        self.state_source = Source(distributions[0], self.memory)
+        self._state_source = Source(distributions[0], self.memory)
         self.transition_matrix = np.zeros((self.n_states, self.n_states))
         for i in range(self.n_states):
             for j in range(self.n_symbols):
-                new_state_index = self.new_state_index(j, i)
+                new_state_index = self._new_state_index(j, i)
                 self.transition_matrix[i, new_state_index] += self.probability(j, i)
         values, vectors = np.linalg.eig(self.transition_matrix.transpose())
         eigenvector_index = np.argmin(abs(values - 1))
         eigenvector = np.abs(vectors[:, eigenvector_index])
         self.state_pmf = eigenvector/np.sum(eigenvector)
-        self.unconditional_simple_pmf = np.matmul(self.state_pmf, self.pmf)
-        self.state_cmf = np.zeros(self.n_states)
-        state_cmf = 0
+        self._unconditional_simple_pmf = np.matmul(self.state_pmf, self.pmf)
+        self.state_cdf = np.zeros(self.n_states)
+        state_cdf = 0
         for i in range(self.n_states):
-            state_cmf += self.state_pmf[i]
-            self.state_cmf[i] = state_cmf
-        self.state_cmf /= state_cmf
+            state_cdf += self.state_pmf[i]
+            self.state_cdf[i] = state_cdf
+        self.state_cdf /= state_cdf
         
         self.base_entropy = 0
         for state_probability, conditional_source in zip(self.state_pmf, self.conditional_sources):
             self.base_entropy += state_probability*conditional_source.base_entropy
-        self.entropy_per_symbol = self.base_entropy/self.symbol_length
         
     def index_to_symbol(self, index: int) -> str:
         var_index = index
@@ -494,17 +493,17 @@ class MemorySource:
         index = 0
         for i in range(self.n_extension):
             for j in range(self.n_base_symbols):
-                if symbol[i*self.symbol_length:(i + 1)*self.symbol_length] == self.alphabet[j]:
+                if symbol[i] == self.alphabet[j]:
                     index += j*(self.n_base_symbols**(self.n_extension - i - 1))
         return index
         
     def index_to_state(self, index: int) -> str:
-        return self.state_source.index_to_symbol(index)
+        return self._state_source.index_to_symbol(index)
         
     def state_to_index(self, symbol: str) -> int:
-        return self.state_source.symbol_to_index(symbol)
+        return self._state_source.symbol_to_index(symbol)
 
-    def new_state_index(self, symbol: str | int, state: str | int) -> int:
+    def _new_state_index(self, symbol: str | int, state: str | int) -> int:
         symbol_index = symbol if isinstance(symbol, int) else self.symbol_to_index(symbol)
         state_index = state if isinstance(state, int) else self.state_to_index(state)
         
@@ -555,6 +554,12 @@ class MemorySource:
 
         return Source(unconditional_dist)
     
+    def typical_set_p_limits(self, epsilon: float = 0.1) -> tuple[float, float]:
+        return (2**(-self.n_extension*(self.base_entropy + epsilon)), 2**(-self.n_extension*(self.base_entropy - epsilon)))
+    
+    def typical_set_size_bound(self, epsilon: float = 0.1) -> int:
+        return int(np.floor(2**(self.n_extension*(self.base_entropy - np.log2(self.n_base_symbols) + epsilon))))
+
     def typical_set(self, epsilon: float = 0.1) -> set[str]:
         typical_set_indexes = fast_typical_set_memory(self.pmf, self.state_pmf, self.base_entropy, epsilon, self.n_base_symbols, self.n_extension, self.memory)
 
@@ -614,24 +619,24 @@ class MemorySource:
         state_index = self.state_to_index(state) if isinstance(state, str) else None
         
         if reset_state:
-            self.current_state_index = UNKNOWN_STATE_INDEX
+            self._current_state_index = UNKNOWN_STATE_INDEX
         if state_index is None:
-            if self.current_state_index == UNKNOWN_STATE_INDEX:
-                shifted_state_cmf = self.state_cmf - np.random.random()
-                positive_shifted_state_cmf = np.where(shifted_state_cmf < 0, np.inf, shifted_state_cmf)
-                state_index = int(np.argmin(positive_shifted_state_cmf))
+            if self._current_state_index == UNKNOWN_STATE_INDEX:
+                shifted_state_cdf = self.state_cdf - np.random.random()
+                positive_shifted_state_cdf = np.where(shifted_state_cdf < 0, np.inf, shifted_state_cdf)
+                state_index = int(np.argmin(positive_shifted_state_cdf))
             else:
-                state_index = self.current_state_index
+                state_index = self._current_state_index
                 
         for i in range(n_generated*self.n_extension):
-            shifted_cmf = self.cmf[state_index] - np.random.random()
-            positive_shifted_cmf = np.where(shifted_cmf < 0, np.inf, shifted_cmf)
-            symbol_index = int(np.argmin(positive_shifted_cmf))
+            shifted_cdf = self.cdf[state_index] - np.random.random()
+            positive_shifted_cdf = np.where(shifted_cdf < 0, np.inf, shifted_cdf)
+            symbol_index = int(np.argmin(positive_shifted_cdf))
             output += self.alphabet[symbol_index]            
             state_index %= self.n_base_symbols
             state_index *= self.n_base_symbols
             state_index += symbol_index
-        self.current_state_index = state_index
+        self._current_state_index = state_index
             
         return output
     
