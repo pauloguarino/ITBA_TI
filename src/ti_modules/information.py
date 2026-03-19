@@ -162,6 +162,7 @@ class Source:
     
     n_base_symbols: int
     n_symbols: int
+    symbol_length: int
     
     cdf: np.ndarray
     base_entropy: float
@@ -179,7 +180,8 @@ class Source:
         
         self.n_base_symbols = len(self.base_symbols)
         self.n_symbols = self.n_base_symbols**self.n_extension
-        assert all([len(symbol) == 1 for symbol in self.base_symbols])
+        self.symbol_length = len(self.base_symbols[0])
+        assert all([len(symbol) == self.symbol_length for symbol in self.base_symbols])
         
         self.pmf = np.array([float(probability) for probability in self.dist.values()])
         pmf_norm = self.pmf.sum()
@@ -208,7 +210,7 @@ class Source:
         index = 0
         for i in range(self.n_extension):
             for j in range(self.n_base_symbols):
-                if symbol[i] == self.base_symbols[j]:
+                if symbol[i*self.symbol_length:(i + 1)*self.symbol_length] == self.base_symbols[j]:
                     index += j*(self.n_base_symbols**(self.n_extension - i - 1))
         return index
     
@@ -250,7 +252,7 @@ class Source:
     def __repr__(self) -> str:
         print_output = "symbol\t"
         print_output_len = len(print_output) + 5
-        while print_output_len < self.n_extension + 1:
+        while print_output_len < self.symbol_length*self.n_extension + 1:
             print_output += "\t"
             print_output_len += 6
         print_output += "Probability"
@@ -411,6 +413,7 @@ class MemorySource:
     
     n_base_symbols: int
     n_symbols: int
+    symbol_length: int
     
     memory: int
     n_states: int
@@ -440,7 +443,8 @@ class MemorySource:
         
         self.n_base_symbols = len(self.base_symbols)
         self.n_symbols = self.n_base_symbols**self.n_extension
-        assert all([len(symbol) == 1 for symbol in self.base_symbols])
+        self.symbol_length = len(self.base_symbols[0])
+        assert all([len(symbol) == self.symbol_length for symbol in self.base_symbols])
         
         self.n_states = self.pmf.shape[0]
         self.memory = np.emath.logn(self.n_base_symbols, self.n_states)
@@ -497,7 +501,7 @@ class MemorySource:
         index = 0
         for i in range(self.n_extension):
             for j in range(self.n_base_symbols):
-                if symbol[i] == self.base_symbols[j]:
+                if symbol[i*self.symbol_length:(i + 1)*self.symbol_length] == self.base_symbols[j]:
                     index += j*(self.n_base_symbols**(self.n_extension - i - 1))
         return index
         
