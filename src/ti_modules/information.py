@@ -155,6 +155,7 @@ def fast_typical_set(pmf: np.ndarray, base_entropy: float, epsilon: float, n_bas
 
 class Source:
     dist: dict[str, float]
+    base_symbols: list[str]
     alphabet: list[str]
     pmf: np.ndarray
     n_extension: int
@@ -172,12 +173,13 @@ class Source:
             self.dist = {symbol: probability for symbol, probability in zip(dist[0], dist[1])}
         if isinstance(dist, Source):
             self.dist = {symbol: probability for symbol, probability in dist.dist.items()}
-        self.alphabet = [symbol for symbol in self.dist.keys()]
+        self.base_symbols = [symbol for symbol in self.dist.keys()]
+        self.alphabet = list(dict.fromkeys([character for character in (symbol for symbol in self.base_symbols)]))
         self.n_extension = n_extension
         
-        self.n_base_symbols = len(self.alphabet)
+        self.n_base_symbols = len(self.base_symbols)
         self.n_symbols = self.n_base_symbols**self.n_extension
-        assert all([len(symbol) == 1 for symbol in self.alphabet])
+        assert all([len(symbol) == 1 for symbol in self.base_symbols])
         
         self.pmf = np.array([float(probability) for probability in self.dist.values()])
         pmf_norm = self.pmf.sum()
@@ -198,7 +200,7 @@ class Source:
         symbol = ""
         for i in range(self.n_extension - 1, -1, -1):
             symbol_index = var_index // (self.n_base_symbols**i)
-            symbol += self.alphabet[symbol_index]
+            symbol += self.base_symbols[symbol_index]
             var_index -= symbol_index*(self.n_base_symbols**i)
         return symbol
     
@@ -206,7 +208,7 @@ class Source:
         index = 0
         for i in range(self.n_extension):
             for j in range(self.n_base_symbols):
-                if symbol[i] == self.alphabet[j]:
+                if symbol[i] == self.base_symbols[j]:
                     index += j*(self.n_base_symbols**(self.n_extension - i - 1))
         return index
     
@@ -284,7 +286,7 @@ class Source:
             for j in range(self.n_extension):
                 shifted_cdf = self.cdf - np.random.random()
                 positive_shifted_cdf = np.where(shifted_cdf < 0, np.inf, shifted_cdf)
-                output += self.alphabet[np.argmin(positive_shifted_cdf)]
+                output += self.base_symbols[np.argmin(positive_shifted_cdf)]
             
         return output
     
@@ -402,6 +404,7 @@ def fast_typical_set_memory(pmf: np.ndarray, state_pmf: np.ndarray, base_entropy
     return np.array(indexes, np.int64)
 
 class MemorySource:
+    base_symbols: list[str]
     alphabet: list[str]
     pmf: np.ndarray
     n_extension: int
@@ -426,17 +429,18 @@ class MemorySource:
 
     def __init__(self, dist: tuple[Iterable[str], np.ndarray] | MemorySource, n_extension: int = 1):
         if isinstance(dist, tuple):
-            self.alphabet = [symbol for symbol in dist[0]]
+            self.base_symbols = [symbol for symbol in dist[0]]
             self.pmf = np.copy(dist[1])
         if isinstance(dist, MemorySource):
-            self.alphabet = [symbol for symbol in dist.alphabet]
+            self.base_symbols = [symbol for symbol in dist.base_symbols]
             self.pmf = np.copy(dist.pmf)
+        self.alphabet = list(dict.fromkeys([character for character in (symbol for symbol in self.base_symbols)]))
         self.n_extension = n_extension
-        assert len(self.alphabet) == self.pmf.shape[1]
+        assert len(self.base_symbols) == self.pmf.shape[1]
         
-        self.n_base_symbols = len(self.alphabet)
+        self.n_base_symbols = len(self.base_symbols)
         self.n_symbols = self.n_base_symbols**self.n_extension
-        assert all([len(symbol) == 1 for symbol in self.alphabet])
+        assert all([len(symbol) == 1 for symbol in self.base_symbols])
         
         self.n_states = self.pmf.shape[0]
         self.memory = np.emath.logn(self.n_base_symbols, self.n_states)
@@ -444,7 +448,7 @@ class MemorySource:
         self.memory = int(self.memory)
         self.memory_extension_ratio = int(np.ceil(self.memory/self.n_extension))
 
-        distributions = [{self.alphabet[i]: self.pmf[j, i] for i in range(self.n_base_symbols)} for j in range(self.n_states)]
+        distributions = [{self.base_symbols[i]: self.pmf[j, i] for i in range(self.n_base_symbols)} for j in range(self.n_states)]
         self.conditional_sources = [Source(dist, self.n_extension) for dist in distributions]
         
         self.pmf = np.zeros(self.pmf.shape)
@@ -485,7 +489,7 @@ class MemorySource:
         symbol = ""
         for i in range(self.n_extension - 1, -1, -1):
             symbol_index = var_index // (self.n_base_symbols**i)
-            symbol += self.alphabet[symbol_index]
+            symbol += self.base_symbols[symbol_index]
             var_index -= symbol_index*(self.n_base_symbols**i)
         return symbol
         
@@ -493,7 +497,7 @@ class MemorySource:
         index = 0
         for i in range(self.n_extension):
             for j in range(self.n_base_symbols):
-                if symbol[i] == self.alphabet[j]:
+                if symbol[i] == self.base_symbols[j]:
                     index += j*(self.n_base_symbols**(self.n_extension - i - 1))
         return index
         
@@ -549,8 +553,8 @@ class MemorySource:
     
     def unconditional_source(self) -> Source:
         unconditional_pmf = fast_unconditional_pmf_memory(self.pmf, self.state_pmf, self.n_base_symbols, self.n_extension, self.memory)
-        unconditional_alphabet = [self.index_to_symbol(i) for i in range(self.n_symbols)]
-        unconditional_dist = {symbol: probability for symbol, probability in zip(unconditional_alphabet, unconditional_pmf)}
+        unconditional_base_symbols = [self.index_to_symbol(i) for i in range(self.n_symbols)]
+        unconditional_dist = {symbol: probability for symbol, probability in zip(unconditional_base_symbols, unconditional_pmf)}
 
         return Source(unconditional_dist)
     
@@ -632,7 +636,7 @@ class MemorySource:
             shifted_cdf = self.cdf[state_index] - np.random.random()
             positive_shifted_cdf = np.where(shifted_cdf < 0, np.inf, shifted_cdf)
             symbol_index = int(np.argmin(positive_shifted_cdf))
-            output += self.alphabet[symbol_index]            
+            output += self.base_symbols[symbol_index]            
             state_index %= self.n_base_symbols
             state_index *= self.n_base_symbols
             state_index += symbol_index
