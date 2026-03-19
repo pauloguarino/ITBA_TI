@@ -41,7 +41,9 @@ fuentes
         compression sim
             extensiones no daba bien
         mostrar cómo un archivo comprimido es estadísticamente indistinguible de ruido
+            mostrar cómo se reduce la entropía a medida que tomamos estimaciones con mayor memoria de cadenas generadas con cierto algoritmo con memoria, y cómo eso no pasa si las cadenas son ruido
         gráfico continuo que muestre los símbolos siendo transmitidos y vaya calculando la entropía estadística
+        histograma de la distribución que marque la separación del conjunto típico
     mejoras de código
         pasarlo a notebook
         condicionar las probabilidades a los símbolos extendidos
